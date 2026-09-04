@@ -10,7 +10,10 @@
 //! encoding this slice has not claimed returns `unallocated` and faults rather
 //! than decoding to something approximate.
 
+mod loads_stores;
 mod scalar;
+
+pub use loads_stores::loads_and_stores_vec;
 
 use super::super::instruction::{unallocated, Instruction};
 use super::bits;

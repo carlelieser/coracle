@@ -19,7 +19,7 @@ pub use branch_system::branches_exceptions_system;
 pub use dp_immediate::data_processing_immediate;
 pub use dp_register::data_processing_register;
 pub use loads_stores::loads_and_stores;
-pub use simd_fp::data_processing_simd_fp;
+pub use simd_fp::{data_processing_simd_fp, loads_and_stores_vec};
 
 /// Extracts the `[hi:lo]` bit field of an encoding, inclusive at both ends.
 const fn bits(encoding: u32, hi: u32, lo: u32) -> u32 {
