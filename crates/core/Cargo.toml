@@ -10,6 +10,13 @@ publish.workspace = true
 default = ["threads"]
 # Shared linear memory + Atomics.wait. Off for the Safari degraded build.
 threads = []
+# CDT trace emission (tests/EMULATOR_INTERFACE.md §1). Off in release builds.
+trace = []
+
+# Native-only, tests-only: the CDT tests hand their stream to the differ that
+# will consume it at the gate and read back its JSON.
+[target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
+serde_json = "1"
 
 [lints]
 workspace = true

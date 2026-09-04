@@ -14,6 +14,7 @@ pub mod pstate;
 pub mod reg;
 pub mod regfile;
 pub mod threading;
+pub mod trace;
 pub mod trap;
 
 /// Whether this build was compiled against shared linear memory.
