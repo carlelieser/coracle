@@ -320,4 +320,38 @@ impl Op {
     pub const fn is_unallocated(self) -> bool {
         matches!(self, Op::Unallocated)
     }
+
+    /// Whether the destination register is also read.
+    ///
+    /// These opcodes merge into their destination rather than overwriting it,
+    /// so an interpreter must load it before computing. Stated once here
+    /// because the set spans three decode slices and is otherwise rediscovered
+    /// in each: `MOVK` keeps the three halfwords it does not write, `BFM`
+    /// preserves the bits outside the inserted field, `BSL` uses the
+    /// destination as its select mask, `FMLA` accumulates, and `INS` replaces
+    /// one lane.
+    pub const fn reads_destination(self) -> bool {
+        matches!(self, Op::Movk | Op::Bfm | Op::VecBsl | Op::Fmla | Op::Ins)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::Op;
+
+    #[test]
+    fn merging_opcodes_read_their_destination() {
+        for op in [Op::Movk, Op::Bfm, Op::VecBsl, Op::Fmla, Op::Ins] {
+            assert!(op.reads_destination(), "{op:?} merges into its destination");
+        }
+    }
+
+    #[test]
+    fn overwriting_opcodes_do_not_read_their_destination() {
+        // MOVZ is MOVK's overwriting counterpart, and FMUL is FMLA's
+        // non-accumulating one; both are the near miss worth pinning.
+        for op in [Op::Movz, Op::Add, Op::Fmul, Op::Ldr] {
+            assert!(!op.reads_destination(), "{op:?} overwrites its destination");
+        }
+    }
 }
