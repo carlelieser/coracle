@@ -75,14 +75,31 @@ so the gap cannot widen unnoticed if a future QEMU changes its defaults.
 
 ## 3. Memory map, IRQ map, MMIO
 
-**Pending.** Derived from QEMU `virt`'s own generated device tree
-(`-machine dump-dtb`) by the M0 kernel lane, then recorded here. Addresses are
-not invented: they are read off the reference machine so the stock kernel binds
-its drivers without patches.
+Derived from QEMU `virt`'s own generated device tree (`-machine dumpdtb`), not
+invented, so the stock kernel binds its drivers without patches and QEMU stays
+usable as the differential oracle. Verified against the built DTB at
+`kernel/out/coracle-virt.dtb`; `kernel/scripts/dump-reference-dtb.sh`
+regenerates the reference and diffs it.
 
-This section must be filled before M2 begins. Consumers: the `machine` crate
-(device placement), the `devices` crate (MMIO decode), the DTS, and the
-emulator's DTB generator.
+| Region | Base | Size | SPI | GIC INTID |
+|--------|------|------|-----|-----------|
+| GIC distributor | `0x0800_0000` | 64 KB | — | — |
+| GIC CPU interface | `0x0801_0000` | 64 KB | — | — |
+| PL011 UART (`ttyAMA0`) | `0x0900_0000` | 4 KB | 1 | 33 |
+| PL031 RTC | `0x0901_0000` | 4 KB | 2 | 34 |
+| virtio-mmio slots 0–7 | `0x0a00_0000` | 512 B each | 16–23 | 48–55 |
+| Guest RAM | `0x4000_0000` | 1 GB | — | — |
+
+SPI *n* is GIC INTID *n* + 32. virtio-mmio slots are strided by `0x200`, so
+slot *n* is at `0x0a00_0000 + n * 0x200` with SPI *16 + n*. QEMU's `virt`
+provides 32 slots; we declare 8 — enough for blk, net, 9p, rng and console with
+headroom, without 32 probe cycles at boot.
+
+Timer PPIs: 13 secure physical, 14 non-secure physical, 11 virtual, 10
+hypervisor — GIC INTIDs 29, 30, 27, 26. The counter runs at 62.5 MHz.
+
+Consumers: the `machine` crate (device placement), the `devices` crate (MMIO
+decode), the DTS, and the emulator's DTB generator.
 
 ## 4. Guest RAM
 
