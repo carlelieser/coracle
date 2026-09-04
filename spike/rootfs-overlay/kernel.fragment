@@ -1,0 +1,53 @@
+# Kernel config fragment merged onto arm64 defconfig.
+# Everything the overlay-on-9p root needs is built in (=y), never a module:
+# the root filesystem is assembled by the initramfs /init before any module
+# could be loaded from it.
+
+# --- virtio transport: the plan's machine model is virtio-mmio, not PCI ---
+CONFIG_VIRTIO=y
+CONFIG_VIRTIO_MMIO=y
+CONFIG_VIRTIO_MMIO_CMDLINE_DEVICES=y
+CONFIG_VIRTIO_BLK=y
+
+# --- 9p as the overlay lower layer ---
+CONFIG_NET_9P=y
+CONFIG_NET_9P_VIRTIO=y
+CONFIG_9P_FS=y
+CONFIG_9P_FS_POSIX_ACL=y
+CONFIG_9P_FS_SECURITY=y
+
+# --- ext4 as the overlay upper layer ---
+CONFIG_EXT4_FS=y
+CONFIG_EXT4_FS_POSIX_ACL=y
+CONFIG_EXT4_FS_SECURITY=y
+
+# --- overlayfs itself ---
+CONFIG_OVERLAY_FS=y
+CONFIG_OVERLAY_FS_REDIRECT_DIR=y
+CONFIG_OVERLAY_FS_INDEX=y
+CONFIG_OVERLAY_FS_XINO_AUTO=y
+CONFIG_OVERLAY_FS_METACOPY=y
+
+# --- xattr plumbing overlayfs uses for its own bookkeeping ---
+CONFIG_TMPFS_XATTR=y
+CONFIG_TMPFS_POSIX_ACL=y
+
+# --- console and initramfs ---
+CONFIG_SERIAL_AMBA_PL011=y
+CONFIG_SERIAL_AMBA_PL011_CONSOLE=y
+CONFIG_BLK_DEV_INITRD=y
+CONFIG_RD_GZIP=y
+CONFIG_DEVTMPFS=y
+CONFIG_DEVTMPFS_MOUNT=y
+
+# --- keep the build small and the boot quiet ---
+CONFIG_MODULES=n
+
+# --- drop drivers the virt machine never uses ---
+# Also avoids unrelated build-time dependencies: the MSM DRM driver shells out
+# to python3 to generate register headers.
+CONFIG_DRM=n
+CONFIG_SOUND=n
+CONFIG_WLAN=n
+CONFIG_INFINIBAND=n
+CONFIG_MEDIA_SUPPORT=n
