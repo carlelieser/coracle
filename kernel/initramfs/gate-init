@@ -1,0 +1,33 @@
+#!/bin/sh
+# Non-interactive init used by the M0 gate. Same setup as /init, but it runs
+# the checks, prints the full log for inspection, and powers off through PSCI
+# instead of handing over a shell.
+#
+# Selected with rdinit=/gate-init; the interactive /init is untouched.
+
+/bin/busybox --install -s /bin
+
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t devtmpfs devtmpfs /dev
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+
+# Prove userspace actually executes, not just that init started.
+echo "GATE:shell-alive $(( 1 + 1 ))"
+echo "GATE:uname $(uname -srm)"
+echo "GATE:root-uid $(id -u)"
+
+# fork+exec through a pipe: the M2 gate scales this to 1000 iterations.
+echo "GATE:pipeline $(echo hi | wc -c)"
+
+mount | sed 's/^/GATE:mount /'
+
+echo "GATE:dmesg-begin"
+dmesg
+echo "GATE:dmesg-end"
+
+echo "GATE:done"
+
+# PSCI SYSTEM_OFF. A clean exit here is the poweroff half of the gate.
+poweroff -f
