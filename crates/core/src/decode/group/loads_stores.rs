@@ -34,8 +34,7 @@ pub fn loads_and_stores(encoding: u32) -> Instruction {
     let has_reserved_bit_set = bits(encoding, 24, 24) == 1;
 
     match bits(encoding, 29, 28) {
-        0b00 if has_reserved_bit_set => unallocated(encoding),
-        0b01 if has_reserved_bit_set => unallocated(encoding),
+        0b00 | 0b01 if has_reserved_bit_set => unallocated(encoding),
         0b00 => exclusive(encoding),
         0b01 => literal(encoding),
         0b10 => pair(encoding),
