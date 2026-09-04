@@ -1,0 +1,21 @@
+#!/bin/sh
+# M0 initramfs init: mount the pseudo-filesystems and hand over a shell.
+#
+# This is the M0 gate target only. The real container init (M4) replaces it and
+# pivots to the overlayfs root; nothing here is meant to survive that.
+
+/bin/busybox --install -s /bin
+
+mount -t proc     proc     /proc
+mount -t sysfs    sysfs    /sys
+mount -t devtmpfs devtmpfs /dev
+
+mkdir -p /dev/pts
+mount -t devpts devpts /dev/pts
+
+echo
+echo "coracle initramfs: busybox shell on ttyAMA0"
+echo
+
+# PSCI SYSTEM_OFF/SYSTEM_RESET is what `poweroff -f` and `reboot -f` reach.
+exec /bin/sh

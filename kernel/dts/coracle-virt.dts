@@ -1,0 +1,207 @@
+/dts-v1/;
+
+/*
+ * Machine device tree for the coracle emulator.
+ *
+ * Derived from QEMU `virt` (qemu-system-aarch64 11.1.1, -machine
+ * virt,gic-version=2 -cpu cortex-a53 -smp 1 -m 1024) dumped with
+ * `-machine dumpdtb=`. Addresses and IRQs are QEMU's, not invented, so the
+ * stock kernel boots unpatched and QEMU stays usable as the differential
+ * oracle.
+ *
+ * Deliberate divergences from that dump, and only these:
+ *
+ *   1. psci/method is "smc", not QEMU's "hvc". We have no EL2; the firmware
+ *      interface is a PSCI subset over trapped SMC.
+ *   2. psci exposes only the subset the emulator implements. cpu_on/cpu_off/
+ *      migrate are absent: single vCPU is a v1 non-goal, and advertising a
+ *      function we do not implement invites the kernel to call it.
+ *   3. No pcie, fw-cfg, platform-bus, flash, or gpio-keys nodes. The emulator
+ *      implements none of them and the kernel config has no drivers for them.
+ *   4. virtio-mmio slots trimmed from 32 to 8. The guest needs blk, net, 9p,
+ *      rng and console; 8 leaves headroom without 32 probe cycles at boot.
+ *   5. No pmu node. PMUv3 is outside the advertised feature mask.
+ *
+ * Regenerate the reference and diff against this file with
+ * `scripts/dump-reference-dtb.sh`.
+ */
+
+/ {
+	interrupt-parent = <&gic>;
+	dma-coherent;
+	model = "coracle,virt";
+	compatible = "coracle,virt", "linux,dummy-virt";
+	#address-cells = <0x02>;
+	#size-cells = <0x02>;
+
+	chosen {
+		stdout-path = "/pl011@9000000";
+	};
+
+	aliases {
+		serial0 = "/pl011@9000000";
+	};
+
+	/*
+	 * PSCI over trapped SMC. SYSTEM_OFF and SYSTEM_RESET are the machine-loop
+	 * exit and restart; CPU_SUSPEND idles until the next timer or IRQ.
+	 * PSCI_VERSION is implied by the "arm,psci-0.2" binding and takes no
+	 * property. Function IDs are the architectural ones and match QEMU.
+	 */
+	psci {
+		compatible = "arm,psci-1.0", "arm,psci-0.2", "arm,psci";
+		method = "smc";
+		cpu_suspend = <0xc4000001>;
+	};
+
+	/* 1 GB at 0x4000_0000, matching the default guest RAM size. */
+	memory@40000000 {
+		device_type = "memory";
+		reg = <0x00 0x40000000 0x00 0x40000000>;
+	};
+
+	cpus {
+		#address-cells = <0x01>;
+		#size-cells = <0x00>;
+
+		cpu@0 {
+			device_type = "cpu";
+			compatible = "arm,cortex-a53";
+			reg = <0x00>;
+			phandle = <0x8001>;
+			d-cache-block-size = <0x40>;
+			d-cache-size = <0x8000>;
+			d-cache-sets = <0x80>;
+			i-cache-block-size = <0x40>;
+			i-cache-size = <0x8000>;
+			i-cache-sets = <0x200>;
+			next-level-cache = <0x00>;
+		};
+
+		cpu-map {
+			socket0 {
+				cluster0 {
+					core0 {
+						cpu = <0x8001>;
+					};
+				};
+			};
+		};
+	};
+
+	/*
+	 * GICv2. reg is [distributor, cpu interface]; the CPU interface is 0x2000
+	 * wide in hardware but QEMU maps 0x10000 and the kernel accepts it.
+	 */
+	gic: intc@8000000 {
+		compatible = "arm,cortex-a15-gic";
+		#interrupt-cells = <0x03>;
+		interrupt-controller;
+		reg = <0x00 0x8000000 0x00 0x10000>,
+		      <0x00 0x8010000 0x00 0x10000>;
+		phandle = <0x8002>;
+		#address-cells = <0x02>;
+		#size-cells = <0x02>;
+		ranges;
+	};
+
+	/*
+	 * Generic timer. PPIs 13/14/11/10 are secure-phys, non-secure-phys,
+	 * virt and hyp. Trigger 0x104 is level-low on the single-CPU mask.
+	 */
+	timer {
+		compatible = "arm,armv8-timer", "arm,armv7-timer";
+		interrupts = <0x01 0x0d 0x104>,
+			     <0x01 0x0e 0x104>,
+			     <0x01 0x0b 0x104>,
+			     <0x01 0x0a 0x104>;
+		always-on;
+	};
+
+	apb_pclk: apb-pclk {
+		compatible = "fixed-clock";
+		#clock-cells = <0x00>;
+		clock-frequency = <0x16e3600>;
+		clock-output-names = "clk24mhz";
+		phandle = <0x8000>;
+	};
+
+	/* Console: console=ttyAMA0. SPI 1 -> GIC IRQ 33. */
+	pl011@9000000 {
+		compatible = "arm,pl011", "arm,primecell";
+		reg = <0x00 0x9000000 0x00 0x1000>;
+		interrupts = <0x00 0x01 0x04>;
+		clocks = <&apb_pclk>, <&apb_pclk>;
+		clock-names = "uartclk", "apb_pclk";
+	};
+
+	/* Wall clock at boot. SPI 2 -> GIC IRQ 34. */
+	pl031@9010000 {
+		compatible = "arm,pl031", "arm,primecell";
+		reg = <0x00 0x9010000 0x00 0x1000>;
+		interrupts = <0x00 0x02 0x04>;
+		clocks = <&apb_pclk>;
+		clock-names = "apb_pclk";
+	};
+
+	/*
+	 * virtio-mmio slots. 0x200 stride from 0xa000000, SPI 16..23 ->
+	 * GIC IRQ 48..55. The kernel binds devices in DT order, so slot 0 is the
+	 * first device the emulator populates.
+	 */
+	virtio_mmio@a000000 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000000 0x00 0x200>;
+		interrupts = <0x00 0x10 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000200 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000200 0x00 0x200>;
+		interrupts = <0x00 0x11 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000400 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000400 0x00 0x200>;
+		interrupts = <0x00 0x12 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000600 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000600 0x00 0x200>;
+		interrupts = <0x00 0x13 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000800 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000800 0x00 0x200>;
+		interrupts = <0x00 0x14 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000a00 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000a00 0x00 0x200>;
+		interrupts = <0x00 0x15 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000c00 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000c00 0x00 0x200>;
+		interrupts = <0x00 0x16 0x01>;
+		dma-coherent;
+	};
+
+	virtio_mmio@a000e00 {
+		compatible = "virtio,mmio";
+		reg = <0x00 0xa000e00 0x00 0x200>;
+		interrupts = <0x00 0x17 0x01>;
+		dma-coherent;
+	};
+};
