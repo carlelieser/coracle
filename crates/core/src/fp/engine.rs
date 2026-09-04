@@ -9,7 +9,7 @@ use super::backend::{
     FpBackend, FpBinaryOp, FpFmaOperands, FpOperands, FpSignOp, FpUnaryOp, FpValue,
     FromIntegerSource, ToIntegerTarget,
 };
-use super::control::{accumulate, is_default_mode_bits, FpControl, FpExceptions};
+use super::control::{accumulate, is_default_mode_bits, FpControl};
 use super::native::Native;
 use super::operand::{FpComparison, FpFormat, FpResult, FpRounding};
 use super::softfloat::Softfloat;
@@ -192,6 +192,7 @@ pub fn selects_native_backend(fpcr: u64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::fp::control::FpExceptions;
 
     const DOUBLE: FpFormat = FpFormat::Double;
 

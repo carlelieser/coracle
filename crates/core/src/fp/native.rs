@@ -47,23 +47,6 @@ impl Native {
     }
 }
 
-/// Applies a single- and a double-precision operation to raw bits.
-///
-/// The two arms are identical but for the width, and writing them out per
-/// operation is what makes this backend long; this keeps each operation to its
-/// one interesting line.
-fn dispatch(
-    format: FpFormat,
-    bits: u64,
-    single: impl Fn(f32) -> f32,
-    double: impl Fn(f64) -> f64,
-) -> u64 {
-    match format {
-        FpFormat::Single => single(f32::from_bits(bits as u32)).to_bits() as u64,
-        _ => double(f64::from_bits(bits)).to_bits(),
-    }
-}
-
 /// The same for a two-operand computation.
 fn dispatch_binary(
     format: FpFormat,
@@ -113,14 +96,11 @@ impl FpBackend for Native {
         rounding: FpRounding,
         control: FpControl,
     ) -> FpResult {
-        match op {
-            FpUnaryOp::Sqrt if Self::can_serve(operand.format, rounding) => FpResult::exact(
-                dispatch(operand.format, operand.bits, |x| x.sqrt(), |x| x.sqrt()),
-            ),
-            // `FRINT` names its own rounding mode, which the host cannot
-            // select, so every mode but the default one belongs to softfloat.
-            _ => self.fallback.unary(op, operand, rounding, control),
-        }
+        // `f32::sqrt` and `f64::sqrt` are `std` methods — `core` has neither,
+        // and this crate is `no_std`, so there is no host square root to call
+        // even though wasm has an `f64.sqrt` instruction. `FRINT` likewise names
+        // a rounding mode the host cannot select. Both are the reference's.
+        self.fallback.unary(op, operand, rounding, control)
     }
 
     fn fused_multiply_add(&self, operands: FpFmaOperands, control: FpControl) -> FpResult {

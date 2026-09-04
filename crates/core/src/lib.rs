@@ -11,7 +11,6 @@ extern crate alloc;
 pub mod decode;
 pub mod fp;
 pub mod guest_memory;
-pub mod interp;
 pub mod pstate;
 pub mod reg;
 pub mod regfile;
