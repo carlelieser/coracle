@@ -10,7 +10,8 @@
 //! model and trace path end to end; they are not a coverage claim.
 
 use super::address::{AccessSize, AddrMode, Ordering, WriteBack};
-use super::instruction::{unallocated, Form, Instruction, Op};
+use super::instruction::{unallocated, Form, Instruction};
+use super::op::Op;
 use super::operand::{RegWidth, ShiftKind, ShiftedReg};
 use crate::reg::Gpr;
 

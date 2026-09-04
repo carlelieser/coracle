@@ -9,9 +9,11 @@
 pub mod address;
 pub mod group;
 pub mod instruction;
+pub mod op;
 pub mod operand;
 
-pub use instruction::{unallocated, Form, Instruction, Op};
+pub use instruction::{unallocated, Form, Instruction};
+pub use op::Op;
 
 /// Bytes occupied by one A64 instruction. Fixed by the architecture.
 pub const INSN_BYTES: u64 = 4;
