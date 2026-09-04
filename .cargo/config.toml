@@ -1,0 +1,86 @@
+# Two shipping wasm configurations, one alias each. Use the aliases; a bare
+# `cargo build --target wasm32-unknown-unknown` is neither of them.
+#
+#   cargo wasm      threaded, shared linear memory, runs in a Web Worker.
+#                   The shipping default.
+#   cargo wasm-st   single-threaded degraded build for Safari and for pages that
+#                   cannot set COOP/COEP. Feature-detected by the SDK.
+#
+# Why the flags live in the aliases rather than in a `[target.*]` table: cargo
+# takes `rustflags` from the single highest-precedence source, it does not merge
+# them, and a `[target.*]` table in this file outranks `--config` on the command
+# line. With the table present there is no way to build the non-atomics variant
+# without editing this file. Keeping the table absent leaves both variants
+# expressible, and makes the atomics flags impossible to pick up by accident.
+#
+# Threaded build, flag by flag:
+#   +atomics,+bulk-memory,+mutable-globals
+#       The threading ABI. `wasm32-unknown-unknown`'s prebuilt std is compiled
+#       WITHOUT these and is not ABI-compatible with code that has them, which is
+#       why `-Z build-std` rebuilds the sysroot from source, and why
+#       rust-toolchain.toml pins a nightly (`-Z build-std` is nightly-only).
+#   --shared-memory
+#       Marks the memory shared, so JS sees a SharedArrayBuffer. Requires the
+#       page to be cross-origin isolated.
+#   --import-memory
+#       The module imports its memory instead of defining one. The host builds a
+#       single WebAssembly.Memory and passes the same object to this module, to
+#       the worker, and — from M5 — to every JIT-emitted module, which is what
+#       lets generated code address guest RAM directly.
+#   --max-memory=4294967296
+#       4 GiB, the wasm32 ceiling. Has to cover the Rust heap below
+#       guest_memory::RAM_BASE plus the largest supported guest RAM (2 GB).
+#
+#   --export=__wasm_init_tls,__tls_size,__tls_align,__tls_base
+#       wasm-bindgen's threading transform rewrites the module to give each
+#       worker its own thread-locals, and it looks these symbols up by name. The
+#       linker treats them as internal and drops them unless they are explicitly
+#       exported, and the failure is a link-time
+#       "failed to find `__wasm_init_tls`" from wasm-bindgen, not a compile
+#       error.
+#
+# A shared memory must declare a maximum, so this is required, not a tuning knob.
+
+# `cargo test --target wasm32-unknown-unknown` hands each test binary to
+# wasm-bindgen-test-runner, which runs it in a real browser via chromedriver.
+# Installed by `cargo install wasm-bindgen-cli --version 0.2.127`; the version
+# must match the wasm-bindgen dependency in Cargo.toml exactly.
+[target.wasm32-unknown-unknown]
+runner = "wasm-bindgen-test-runner"
+
+[alias]
+wasm = [
+  "build",
+  "--target", "wasm32-unknown-unknown",
+  "-Z", "build-std=std,panic_abort",
+  "--config", "target.wasm32-unknown-unknown.rustflags=['-Ctarget-feature=+atomics,+bulk-memory,+mutable-globals','-Clink-arg=--shared-memory','-Clink-arg=--import-memory','-Clink-arg=--export-memory','-Clink-arg=--max-memory=4294967296','-Clink-arg=--export=__wasm_init_tls','-Clink-arg=--export=__tls_size','-Clink-arg=--export=__tls_align','-Clink-arg=--export=__tls_base']",
+]
+
+# The degraded build uses the stock prebuilt sysroot: no `-Z build-std`, no
+# atomics, no shared memory. `--no-default-features` turns off the `threads`
+# feature, which switches the machine loop from `Atomics.wait` to yielding back
+# to the host.
+wasm-st = [
+  "build",
+  "--target", "wasm32-unknown-unknown",
+  "--no-default-features",
+]
+
+# Browser tests, one alias per variant, so CI and a developer run the identical
+# configuration. Both need a chromedriver on PATH (or $CHROMEDRIVER) whose
+# version matches the installed Chrome.
+#
+# These drive `cargo test` through wasm-bindgen-test-runner rather than
+# wasm-pack, so the flags stay in one place; `wasm-pack test --headless --chrome`
+# is equivalent when given the same RUSTFLAGS.
+wasm-test = [
+  "test",
+  "--target", "wasm32-unknown-unknown",
+  "-Z", "build-std=std,panic_abort",
+  "--config", "target.wasm32-unknown-unknown.rustflags=['-Ctarget-feature=+atomics,+bulk-memory,+mutable-globals','-Clink-arg=--shared-memory','-Clink-arg=--import-memory','-Clink-arg=--export-memory','-Clink-arg=--max-memory=4294967296','-Clink-arg=--export=__wasm_init_tls','-Clink-arg=--export=__tls_size','-Clink-arg=--export=__tls_align','-Clink-arg=--export=__tls_base']",
+]
+wasm-test-st = [
+  "test",
+  "--target", "wasm32-unknown-unknown",
+  "--no-default-features",
+]

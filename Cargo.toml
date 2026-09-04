@@ -1,0 +1,39 @@
+[workspace]
+resolver = "2"
+members = ["crates/core", "crates/devices", "crates/machine", "crates/wasm"]
+
+[workspace.package]
+version = "0.0.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+coracle-core = { path = "crates/core", default-features = false }
+coracle-devices = { path = "crates/devices", default-features = false }
+coracle-machine = { path = "crates/machine", default-features = false }
+
+wasm-bindgen = "0.2"
+wasm-bindgen-test = "0.3"
+
+[workspace.lints.rust]
+unsafe_op_in_unsafe_fn = "deny"
+missing_debug_implementations = "warn"
+
+[workspace.lints.clippy]
+all = { level = "deny", priority = -1 }
+undocumented_unsafe_blocks = "warn"
+
+# The interpreter hot loop is the product; debug builds of it are unusably slow,
+# so tests get real optimisation too.
+[profile.dev]
+opt-level = 1
+
+[profile.dev.package."*"]
+opt-level = 2
+
+[profile.release]
+opt-level = 3
+lto = "fat"
+codegen-units = 1
+panic = "abort"

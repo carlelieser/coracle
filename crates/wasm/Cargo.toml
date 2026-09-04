@@ -1,0 +1,32 @@
+[package]
+name = "coracle-wasm"
+description = "wasm-bindgen bindings: the only crate the JS SDK links against."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+# `rlib` alongside `cdylib` so `cargo test` can exercise this crate natively;
+# `cdylib` alone is not linkable as a test harness.
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[features]
+default = ["threads"]
+threads = [
+  "coracle-core/threads",
+  "coracle-devices/threads",
+  "coracle-machine/threads",
+]
+
+[dependencies]
+coracle-core = { workspace = true, default-features = false }
+coracle-devices = { workspace = true, default-features = false }
+coracle-machine = { workspace = true, default-features = false }
+wasm-bindgen.workspace = true
+
+[dev-dependencies]
+wasm-bindgen-test.workspace = true
+
+[lints]
+workspace = true
