@@ -165,6 +165,11 @@ pub enum Op {
     Mrs,
     /// Exception return.
     Eret,
+    /// Clear the exclusive monitor.
+    Clrex,
+    /// Send event, and its local form. Architecturally a hint; no effect on a
+    /// single-vCPU machine, but it decodes rather than faulting.
+    Sev,
 
     // ---- memory ----
     /// Load register.
