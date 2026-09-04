@@ -7,4 +7,5 @@
 
 mod arithmetic;
 mod decompose;
+mod fused;
 mod nan;
