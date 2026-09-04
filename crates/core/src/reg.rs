@@ -5,7 +5,7 @@
 //! - [`Gpr`], [`Vec`] and friends are *decoded operands*. `x31` has already
 //!   been resolved to either [`Gpr::ZR`] or [`Gpr::SP`] by the decoder, so the
 //!   register file never has to guess which the encoding meant.
-//! - [`TraceRegId`] is the wire contract in `tests/TRACE_FORMAT.md` §5. Those
+//! - [`trace_reg_id`] is the wire contract in `tests/TRACE_FORMAT.md` §5. Those
 //!   numbers are never renumbered.
 
 /// A general-purpose register operand, after `x31` has been resolved.

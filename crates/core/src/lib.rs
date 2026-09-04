@@ -8,6 +8,7 @@
 
 extern crate alloc;
 
+pub mod decode;
 pub mod guest_memory;
 pub mod pstate;
 pub mod reg;
