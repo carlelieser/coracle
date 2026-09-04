@@ -27,7 +27,7 @@ use super::operand::{FpComparison, FpFormat, FpResult, FpRounding};
 ///
 /// Stateless: FPCR arrives with each call, so one instance serves the whole
 /// machine.
-#[derive(Debug, Clone, Copy, Default)]
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub struct Softfloat;
 
 impl Softfloat {

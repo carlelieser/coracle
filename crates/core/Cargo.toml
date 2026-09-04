@@ -12,6 +12,9 @@ default = ["threads"]
 threads = []
 # CDT trace emission (tests/EMULATOR_INTERFACE.md §1). Off in release builds.
 trace = []
+# Precise mode: route every FP operation through softfloat (docs/plan.md §2).
+# Every differential FP leg builds with this.
+fp-precise = []
 
 # Native-only, tests-only: the CDT tests hand their stream to the differ that
 # will consume it at the gate and read back its JSON.

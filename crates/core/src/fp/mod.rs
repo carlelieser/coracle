@@ -2,5 +2,7 @@
 
 pub mod backend;
 pub mod control;
+pub mod engine;
+pub mod native;
 pub mod operand;
 pub mod softfloat;
