@@ -313,6 +313,88 @@ pub enum Op {
     Tbx,
     /// Extract vector from pair.
     Ext,
+    /// FP move of an immediate into a scalar — `FMOV Sd, #imm`.
+    ///
+    /// Split from [`Op::Fmov`], which Phase A flagged as covering four operand
+    /// layouts across three forms. The interpreter dispatches on [`Op`] alone,
+    /// so a single opcode spanning "register to register", "immediate to
+    /// register", "GPR to vector lane" and "vector lane to GPR" would force it
+    /// to re-inspect the form; these three names plus [`Op::Fmov`] make each
+    /// layout its own arm.
+    FmovImm,
+    /// FP move from a general-purpose register into a SIMD/FP register.
+    FmovToVec,
+    /// FP move from a SIMD/FP register into a general-purpose register.
+    FmovFromVec,
+    /// Insert a general-purpose register into a vector lane — `INS Vd.T[i], Rn`.
+    ///
+    /// Split from [`Op::Ins`], which keeps the element-to-element form, for the
+    /// same reason: the two read different register files.
+    InsGpr,
+    /// FP negated fused multiply-add — `FNMADD`.
+    Fnmadd,
+    /// FP negated fused multiply-subtract — `FNMSUB`.
+    Fnmsub,
+    /// FP multiply, negating the product — `FNMUL`.
+    Fnmul,
+    /// FP maximum, returning the number when one operand is a quiet NaN.
+    Fmaxnm,
+    /// FP minimum, returning the number when one operand is a quiet NaN.
+    Fminnm,
+    /// FP compare, signalling for a quiet NaN — `FCMPE`.
+    Fcmpe,
+    /// FP conditional compare, signalling for a quiet NaN — `FCCMPE`.
+    Fccmpe,
+    /// Vector bitwise AND NOT.
+    VecBic,
+    /// Vector bitwise OR NOT.
+    VecOrn,
+    /// Vector bitwise NOT — `NOT`, assembled as `MVN`.
+    VecNot,
+    /// Vector compare unsigned higher.
+    VecCmhi,
+    /// Vector compare unsigned higher or same.
+    VecCmhs,
+    /// Vector compare signed greater than.
+    VecCmgt,
+    /// Vector compare signed greater than or equal.
+    VecCmge,
+    /// Vector shift left by immediate.
+    VecShl,
+    /// Vector unsigned shift right by immediate.
+    VecUshr,
+    /// Vector signed shift right by immediate.
+    VecSshr,
+    /// Vector negate.
+    VecNeg,
+    /// Vector absolute value.
+    VecAbs,
+    /// Vector population count.
+    VecCnt,
+    /// Vector reverse bytes in 64-bit doublewords.
+    VecRev64,
+    /// Vector reverse bytes in 16-bit halfwords.
+    VecRev16,
+    /// Across-lanes unsigned minimum.
+    Uminv,
+    /// Across-lanes unsigned maximum.
+    Umaxv,
+    /// Across-lanes add.
+    Addv,
+    /// Pairwise add.
+    Addp,
+    /// Interleave lower halves.
+    Zip1,
+    /// Interleave upper halves.
+    Zip2,
+    /// De-interleave even lanes.
+    Uzp1,
+    /// De-interleave odd lanes.
+    Uzp2,
+    /// Transpose even lanes.
+    Trn1,
+    /// Transpose odd lanes.
+    Trn2,
 }
 
 impl Op {
@@ -331,7 +413,25 @@ impl Op {
     /// destination as its select mask, `FMLA` accumulates, and `INS` replaces
     /// one lane.
     pub const fn reads_destination(self) -> bool {
-        matches!(self, Op::Movk | Op::Bfm | Op::VecBsl | Op::Fmla | Op::Ins)
+        matches!(
+            self,
+            Op::Movk
+                | Op::Bfm
+                | Op::VecBsl
+                | Op::Fmla
+                | Op::Ins
+                // FMLS and the vector multiply-accumulates subtract from or add
+                // to the destination, BIT/BIF select against it, INS from a GPR
+                // replaces one lane, and TBX keeps it where an index is out of
+                // range.
+                | Op::Fmls
+                | Op::VecMla
+                | Op::VecMls
+                | Op::VecBit
+                | Op::VecBif
+                | Op::InsGpr
+                | Op::Tbx
+        )
     }
 }
 
@@ -341,7 +441,20 @@ mod tests {
 
     #[test]
     fn merging_opcodes_read_their_destination() {
-        for op in [Op::Movk, Op::Bfm, Op::VecBsl, Op::Fmla, Op::Ins] {
+        for op in [
+            Op::Movk,
+            Op::Bfm,
+            Op::VecBsl,
+            Op::Fmla,
+            Op::Ins,
+            Op::Fmls,
+            Op::VecMla,
+            Op::VecMls,
+            Op::VecBit,
+            Op::VecBif,
+            Op::InsGpr,
+            Op::Tbx,
+        ] {
             assert!(op.reads_destination(), "{op:?} merges into its destination");
         }
     }
@@ -350,7 +463,7 @@ mod tests {
     fn overwriting_opcodes_do_not_read_their_destination() {
         // MOVZ is MOVK's overwriting counterpart, and FMUL is FMLA's
         // non-accumulating one; both are the near miss worth pinning.
-        for op in [Op::Movz, Op::Add, Op::Fmul, Op::Ldr] {
+        for op in [Op::Movz, Op::Add, Op::Fmul, Op::Ldr, Op::Tbl, Op::Dup] {
             assert!(!op.reads_destination(), "{op:?} overwrites its destination");
         }
     }
