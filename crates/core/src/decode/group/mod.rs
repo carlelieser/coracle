@@ -220,10 +220,12 @@ mod tests {
     }
 
     #[test]
-    fn every_simd_fp_encoding_is_still_unclaimed() {
-        // The FP+NEON slice has not landed. Until it does the whole group must
-        // trap rather than decode to something wrong.
-        assert!(decode(0x1e20_2800).op.is_unallocated());
+    fn the_advanced_simd_half_of_the_fp_group_is_still_unclaimed() {
+        // Scalar FP has landed, so its encodings decode. Advanced SIMD is
+        // implemented lazily off the unimplemented-opcode trap
+        // (`docs/plan.md` §M1), so what it has not claimed must still fault
+        // rather than decode to something approximate.
+        assert_eq!(decode(0x1e20_2800).op, Op::Fadd);
         assert!(decode(0x4e20_8400).op.is_unallocated());
     }
 }

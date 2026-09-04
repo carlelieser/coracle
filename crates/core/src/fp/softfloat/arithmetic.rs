@@ -274,7 +274,7 @@ pub fn divide(lhs: u64, rhs: u64, context: Context) -> FpResult {
     // the quotient's precision; the remainder becomes the sticky bit.
     let numerator = (left.significand as u128) << significand_scale(format);
     let quotient = numerator / right.significand as u128;
-    let is_sticky = numerator % right.significand as u128 != 0;
+    let is_sticky = !numerator.is_multiple_of(right.significand as u128);
 
     let value = Unpacked {
         is_negative,

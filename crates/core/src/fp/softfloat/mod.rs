@@ -114,7 +114,12 @@ impl FpBackend for Softfloat {
         convert::to_integer(value.bits, value.format, target.format, target.rounding)
     }
 
-    fn from_integer(&self, value: u64, source: FromIntegerSource, control: FpControl) -> FpResult {
+    fn convert_from_integer(
+        &self,
+        value: u64,
+        source: FromIntegerSource,
+        control: FpControl,
+    ) -> FpResult {
         convert::from_integer(
             value,
             source.format,

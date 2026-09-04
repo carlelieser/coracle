@@ -149,10 +149,15 @@ impl FpBackend for Native {
         self.fallback.to_integer(value, target, control)
     }
 
-    fn from_integer(&self, value: u64, source: FromIntegerSource, control: FpControl) -> FpResult {
+    fn convert_from_integer(
+        &self,
+        value: u64,
+        source: FromIntegerSource,
+        control: FpControl,
+    ) -> FpResult {
         // An integer wider than the significand rounds, and the mode is the
         // encoding's rather than the host's, so this is the reference's too.
-        self.fallback.from_integer(value, source, control)
+        self.fallback.convert_from_integer(value, source, control)
     }
 }
 

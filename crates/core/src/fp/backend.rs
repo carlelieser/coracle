@@ -138,7 +138,12 @@ pub trait FpBackend {
     fn to_integer(&self, value: FpValue, target: ToIntegerTarget, control: FpControl) -> FpResult;
 
     /// Integer to FP.
-    fn from_integer(&self, value: u64, source: FromIntegerSource, control: FpControl) -> FpResult;
+    fn convert_from_integer(
+        &self,
+        value: u64,
+        source: FromIntegerSource,
+        control: FpControl,
+    ) -> FpResult;
 }
 
 /// Which sign operation to apply.
@@ -278,7 +283,7 @@ mod tests {
         fn to_integer(&self, _: FpValue, _: ToIntegerTarget, _: FpControl) -> FpResult {
             unimplemented!("not exercised")
         }
-        fn from_integer(&self, _: u64, _: FromIntegerSource, _: FpControl) -> FpResult {
+        fn convert_from_integer(&self, _: u64, _: FromIntegerSource, _: FpControl) -> FpResult {
             unimplemented!("not exercised")
         }
     }

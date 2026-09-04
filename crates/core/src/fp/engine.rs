@@ -166,8 +166,10 @@ impl FpEngine {
     }
 
     /// Integer to FP.
-    pub fn from_integer(&mut self, value: u64, source: FromIntegerSource) -> u64 {
-        let result = self.backend().from_integer(value, source, self.control);
+    pub fn convert_from_integer(&mut self, value: u64, source: FromIntegerSource) -> u64 {
+        let result = self
+            .backend()
+            .convert_from_integer(value, source, self.control);
         self.record(result)
     }
 }
@@ -310,7 +312,9 @@ mod tests {
 
     #[test]
     fn the_sign_operations_never_touch_the_flags() {
-        let mut engine = FpEngine::with_fpcr(TOWARD_ZERO);
+        // Not `mut`: copy_sign takes &self, which is itself the guarantee that
+        // FNEG and FABS cannot raise.
+        let engine = FpEngine::with_fpcr(TOWARD_ZERO);
         let signalling = FpValue::new(0x7ff0_0000_0000_0001, DOUBLE);
 
         let negated = engine.copy_sign(signalling, FpSignOp::Negate);
