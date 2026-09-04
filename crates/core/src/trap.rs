@@ -265,7 +265,10 @@ mod tests {
 
     #[test]
     fn an_unimplemented_encoding_becomes_a_trap_naming_its_own_pc() {
-        let insn = decode(0x4e20_8400);
+        // `fmla v0.4s, v1.4s, v2.4s` — a vector FP encoding the FP/NEON slice
+        // has not claimed. NEON is implemented lazily off this very trap, so a
+        // stand-in has to be an encoding still in that backlog.
+        let insn = decode(0x4e22_cc20);
         assert!(is_unimplemented(&insn));
 
         let trap = Trap::undefined(0xdead_0000, &insn);
@@ -274,7 +277,7 @@ mod tests {
             trap,
             Trap::UndefinedInstruction {
                 pc: 0xdead_0000,
-                encoding: 0x4e20_8400,
+                encoding: 0x4e22_cc20,
             }
         );
     }

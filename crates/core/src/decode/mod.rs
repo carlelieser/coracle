@@ -69,7 +69,16 @@ pub fn decode(encoding: u32) -> Instruction {
     match EncodingGroup::of(encoding) {
         EncodingGroup::DataProcessingImmediate => group::data_processing_immediate(encoding),
         EncodingGroup::BranchesExceptionsSystem => group::branches_exceptions_system(encoding),
-        EncodingGroup::LoadsAndStores => group::loads_and_stores(encoding),
+        // `V` — bit 26 — selects the SIMD/FP register file. The two halves of
+        // this group belong to different slices, so they are routed apart here
+        // rather than each decoder testing the bit.
+        EncodingGroup::LoadsAndStores => {
+            if (encoding >> 26) & 1 == 1 {
+                group::loads_and_stores_vec(encoding)
+            } else {
+                group::loads_and_stores(encoding)
+            }
+        }
         EncodingGroup::DataProcessingRegister => group::data_processing_register(encoding),
         EncodingGroup::DataProcessingSimdFp => group::data_processing_simd_fp(encoding),
         // SVE is not advertised (docs/machine-spec.md §2) and the reserved and

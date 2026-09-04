@@ -158,9 +158,10 @@ fn the_unallocated_holes_inside_the_claimed_groups_still_fault() {
         (0xf9c0_0420u32, "size 11 with opc 11"),
         // LDUR-space opc = 11 at size = 11.
         (0xf8c0_0020, "unscaled size 11 with opc 11"),
-        // Literal opc = 11 with V = 0 is PRFM; opc = 11 with V = 1 is
-        // unallocated rather than a wider vector literal.
-        (0x9c00_0000, "literal opc 10 with V = 1"),
+        // Literal opc = 11 with V = 0 is PRFM; with V = 1 it is unallocated
+        // rather than a wider vector literal. (opc = 10 with V = 1 is the
+        // legal `ldr q0, literal`, which the FP/NEON slice claims.)
+        (0xdc00_0000, "literal opc 11 with V = 1"),
         // Exclusive group with o2/o1/o0 combinations the architecture does
         // not allocate at size = 00.
         (0x0820_0020, "exclusive-space hole"),

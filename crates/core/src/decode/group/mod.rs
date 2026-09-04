@@ -19,7 +19,7 @@ pub use branch_system::branches_exceptions_system;
 pub use dp_immediate::data_processing_immediate;
 pub use dp_register::data_processing_register;
 pub use loads_stores::loads_and_stores;
-pub use simd_fp::data_processing_simd_fp;
+pub use simd_fp::{data_processing_simd_fp, loads_and_stores_vec};
 
 /// Extracts the `[hi:lo]` bit field of an encoding, inclusive at both ends.
 const fn bits(encoding: u32, hi: u32, lo: u32) -> u32 {
@@ -220,10 +220,15 @@ mod tests {
     }
 
     #[test]
-    fn every_simd_fp_encoding_is_still_unclaimed() {
-        // The FP+NEON slice has not landed. Until it does the whole group must
-        // trap rather than decode to something wrong.
-        assert!(decode(0x1e20_2800).op.is_unallocated());
-        assert!(decode(0x4e20_8400).op.is_unallocated());
+    fn the_advanced_simd_half_of_the_fp_group_is_still_unclaimed() {
+        // Scalar FP has landed, so its encodings decode. Advanced SIMD is
+        // implemented lazily off the unimplemented-opcode trap
+        // (`docs/plan.md` §M1), so what it has not claimed must still fault
+        // rather than decode to something approximate.
+        assert_eq!(decode(0x1e20_2800).op, Op::Fadd);
+        // `add v0.16b, v0.16b, v0.16b` is claimed; `fmla v0.4s, v1.4s, v2.4s`
+        // is not, and stands for the rest of the lazy backlog.
+        assert_eq!(decode(0x4e20_8400).op, Op::VecAdd);
+        assert!(decode(0x4e22_cc20).op.is_unallocated());
     }
 }
