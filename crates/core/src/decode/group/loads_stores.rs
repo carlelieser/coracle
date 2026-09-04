@@ -28,7 +28,14 @@ pub fn loads_and_stores(encoding: u32) -> Instruction {
         return unallocated(encoding);
     }
 
+    // The exclusive and literal families both fix bit 24 at 0. Only the pair
+    // and single-register forms give it a meaning — the index mode and the
+    // unsigned-offset selector respectively.
+    let has_reserved_bit_set = bits(encoding, 24, 24) == 1;
+
     match bits(encoding, 29, 28) {
+        0b00 if has_reserved_bit_set => unallocated(encoding),
+        0b01 if has_reserved_bit_set => unallocated(encoding),
         0b00 => exclusive(encoding),
         0b01 => literal(encoding),
         0b10 => pair(encoding),
@@ -137,6 +144,11 @@ fn single_register(encoding: u32) -> Instruction {
     };
 
     if is_prefetch(size_field, opc) {
+        // Write-back updates the base register, and a prefetch transfers
+        // nothing, so only the non-indexed forms are allocated.
+        if addr.has_writeback() {
+            return unallocated(encoding);
+        }
         let form = Form::Prefetch {
             prfop: bits(encoding, 4, 0) as u8,
             addr,
@@ -174,7 +186,7 @@ fn single_register_address(encoding: u32, size_field: u32) -> Option<AddrMode> {
         if bits(encoding, 11, 10) != 0b10 {
             return None;
         }
-        return Some(register_offset(encoding, size_field));
+        return register_offset(encoding, size_field);
     }
 
     let offset = sign_extend(bits(encoding, 20, 12), 9);
@@ -194,23 +206,32 @@ fn single_register_address(encoding: u32, size_field: u32) -> Option<AddrMode> {
     })
 }
 
-/// `[base, Xm, extend #amount]`.
+/// `[base, Xm, extend #amount]`, or `None` when `option` names no index width.
 ///
 /// The `S` bit selects a shift of `log2(access size)` rather than a fixed
 /// amount, so a byte access scales by zero even with `S` set.
-fn register_offset(encoding: u32, size_field: u32) -> AddrMode {
+///
+/// `option<1>` must be set: an index register is read as a word or a
+/// doubleword, and the byte and halfword extensions the field could otherwise
+/// name have no encoding here.
+fn register_offset(encoding: u32, size_field: u32) -> Option<AddrMode> {
+    let option = bits(encoding, 15, 13) as u8;
+    if option & 0b010 == 0 {
+        return None;
+    }
+
     let is_scaled = bits(encoding, 12, 12) == 1;
     let amount = if is_scaled { size_field as u8 } else { 0 };
 
-    AddrMode::Register {
+    Some(AddrMode::Register {
         base: base(encoding),
         index: ExtendedReg {
             reg: Gpr::from_index_zr(bits(encoding, 20, 16) as u8),
-            kind: ExtendKind::from_option(bits(encoding, 15, 13) as u8),
+            kind: ExtendKind::from_option(option),
             amount,
         },
         writeback: WriteBack::None,
-    }
+    })
 }
 
 /// Load register (literal): `LDR`, `LDRSW` and `PRFM` against a PC-relative
@@ -270,9 +291,13 @@ fn pair(encoding: u32) -> Instruction {
         _ => return unallocated(encoding),
     };
 
-    let Some(writeback) = pair_writeback(encoding) else {
+    let is_non_temporal = bits(encoding, 24, 23) == 0b00;
+    // LDPSW is allocated only for the offset and indexed forms; there is no
+    // LDNPSW, so the signed-word pair has no non-temporal encoding.
+    if is_non_temporal && size.is_signed {
         return unallocated(encoding);
-    };
+    }
+
     let form = Form::LoadStore {
         rt: transferred(encoding),
         rt2: Some(Gpr::from_index_zr(bits(encoding, 14, 10) as u8)),
@@ -280,7 +305,7 @@ fn pair(encoding: u32) -> Instruction {
         addr: AddrMode::Immediate {
             base: base(encoding),
             offset: sign_extend(bits(encoding, 21, 15), 7) * size.bytes as i64,
-            writeback,
+            writeback: pair_writeback(encoding),
         },
         size,
         ordering: Ordering::PLAIN,
@@ -295,11 +320,11 @@ fn pair(encoding: u32) -> Instruction {
 /// `00` is the non-temporal form, which has no write-back at all — `STNP` is a
 /// cache-allocation hint, and this machine has no cache to hint about, so it
 /// decodes as an ordinary pair.
-const fn pair_writeback(encoding: u32) -> Option<WriteBack> {
+const fn pair_writeback(encoding: u32) -> WriteBack {
     match bits(encoding, 24, 23) {
-        0b00 | 0b10 => Some(WriteBack::None),
-        0b01 => Some(WriteBack::Post),
-        _ => Some(WriteBack::Pre),
+        0b00 | 0b10 => WriteBack::None,
+        0b01 => WriteBack::Post,
+        _ => WriteBack::Pre,
     }
 }
 

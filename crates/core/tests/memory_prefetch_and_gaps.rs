@@ -175,6 +175,111 @@ fn the_unallocated_holes_inside_the_claimed_groups_still_fault() {
 }
 
 #[test]
+fn a_register_offset_requires_a_32_or_64_bit_index() {
+    // The option field names the index's width, and only UXTW, LSL, SXTW and
+    // SXTX are allocated: option<1> must be set. A byte or halfword index has
+    // no encoding, so option = 00x and 10x are reserved rather than naming
+    // ExtendKind::Uxtb and Uxtd.
+    let base = 0xf862_6820u32; // ldr x0, [x1, x2] — option = 011.
+
+    for option in [0b000u32, 0b001, 0b100, 0b101] {
+        let encoding = (base & !(0b111 << 13)) | (option << 13);
+        assert!(
+            decode(encoding).op.is_unallocated(),
+            "option = {option:03b} (0x{encoding:08x}) is reserved"
+        );
+    }
+
+    for option in [0b010u32, 0b011, 0b110, 0b111] {
+        let encoding = (base & !(0b111 << 13)) | (option << 13);
+        assert_eq!(
+            decode(encoding).op,
+            Op::Ldr,
+            "option = {option:03b} (0x{encoding:08x}) is allocated"
+        );
+    }
+}
+
+#[test]
+fn a_literal_load_is_only_the_encoding_with_its_fixed_bit_clear() {
+    // Bit 24 is 0 in every literal form. With it set the encoding is not a
+    // wider literal, it is unallocated — and claiming it would decode a
+    // quarter of the literal space into loads that should fault.
+    for opc in 0..4u32 {
+        let literal = 0x18ff_ffc0 | (opc << 30);
+        assert!(
+            !decode(literal).op.is_unallocated(),
+            "opc = {opc:02b} is an allocated literal"
+        );
+        assert!(
+            decode(literal | 1 << 24).op.is_unallocated(),
+            "opc = {opc:02b} with bit 24 set (0x{:08x}) is unallocated",
+            literal | 1 << 24
+        );
+    }
+}
+
+#[test]
+fn the_signed_word_pair_has_no_non_temporal_form() {
+    // LDNPSW does not exist: opc = 01 is allocated only for the offset,
+    // pre- and post-indexed pairs. STPSW does not exist either.
+    assert!(
+        decode(0x6840_0440).op.is_unallocated(),
+        "a non-temporal LDPSW has no encoding"
+    );
+    assert!(
+        decode(0x6900_0440).op.is_unallocated(),
+        "a signed-word pair store has no encoding"
+    );
+
+    // The three that do exist still decode.
+    for (encoding, name) in [
+        (0x6940_0440u32, "ldpsw x0, x1, [x2]"),
+        (0x68c0_0440, "ldpsw x0, x1, [x2], #0"),
+        (0x69c0_0440, "ldpsw x0, x1, [x2, #0]!"),
+    ] {
+        assert_eq!(decode(encoding).op, Op::Ldp, "{name}");
+    }
+}
+
+#[test]
+fn the_exclusive_forms_need_their_fixed_bit_clear_too() {
+    // Like the literals, the whole exclusive and acquire/release group fixes
+    // bit 24 at 0. Ignoring it claims a mirror copy of every LDXR, STXR,
+    // LDAR and STLR that the architecture leaves unallocated.
+    for (encoding, name) in [
+        (0xc85f_7c20u32, "ldxr x0, [x1]"),
+        (0xc802_7c20, "stxr w2, x0, [x1]"),
+        (0xc8df_fc20, "ldar x0, [x1]"),
+        (0xc87f_0440, "ldxp x0, x1, [x2]"),
+    ] {
+        assert!(!decode(encoding).op.is_unallocated(), "{name} is allocated");
+        assert!(
+            decode(encoding | 1 << 24).op.is_unallocated(),
+            "{name} with bit 24 set (0x{:08x}) is unallocated",
+            encoding | 1 << 24
+        );
+    }
+}
+
+#[test]
+fn a_prefetch_has_no_pre_or_post_indexed_form() {
+    // Write-back updates the base register, and a prefetch has no register
+    // to write anything into. PRFUM occupies only the unscaled slot, so the
+    // indexed encodings beside it are unallocated.
+    let unscaled = 0xf880_8000u32; // prfum pldl1keep, [x0, #8]
+    assert_eq!(decode(unscaled).op, Op::Prfm);
+
+    for index_bits in [0b01u32, 0b10, 0b11] {
+        let encoding = (unscaled & !(0b11 << 10)) | (index_bits << 10);
+        assert!(
+            decode(encoding).op.is_unallocated(),
+            "prefetch with bits 11..10 = {index_bits:02b} (0x{encoding:08x}) is unallocated"
+        );
+    }
+}
+
+#[test]
 fn decode_never_panics_across_the_whole_load_store_space() {
     // The M1 gate feeds random words through decode. Every encoding whose
     // op0 selects this group must produce an Instruction, claimed or not.
