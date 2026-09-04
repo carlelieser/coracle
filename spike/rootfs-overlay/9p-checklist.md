@@ -128,7 +128,11 @@ Serve `st_uid`, `st_gid`, `st_mode`, `st_nlink`, `st_size`, `st_rdev`, and the
 three timestamps. Set `valid` to exactly the fields actually filled.
 
 ### C2. Mode bits, including setuid/setgid, must round-trip — REQUIRED
-`OBSERVED` — a `04755` file in the lower keeps mode `4755` after copy-up.
+`OBSERVED` — a `04755` file in the lower reads back as `4755` through the
+overlay *and* keeps `4755` after copy-up. The spike asserts both halves
+separately: a check that only compares before-vs-after passes on a server that
+never delivered the bit at all. That weakness was found by mutation testing,
+not by inspection — see the `setuid-mode` row in `RESULTS.md`.
 `SOURCE` `fs/overlayfs/copy_up.c:398-402` applies `ATTR_MODE` from the lower
 stat. A server masking off setuid silently downgrades guest binaries.
 
@@ -213,8 +217,8 @@ are immutable while mounted" as an invariant the JS side must uphold.
 The spike used QEMU's 9p server, so it settles only that *a correct* 9p lower
 works. These stay open for our own server:
 
-1. Every item above marked `INFERRED` — device nodes (C4), zero-component
-   walk (E3).
+1. Every item above marked `INFERRED` — `msize` negotiation (A3), device nodes
+   (C4), zero-component walk (E3).
 2. `qid.path` stability under our own allocator, specifically across rename,
    remount, and layer-cache eviction (B1). This is the highest-risk item: it is
    invisible until it corrupts something.

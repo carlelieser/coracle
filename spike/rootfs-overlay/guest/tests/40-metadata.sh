@@ -39,20 +39,31 @@ UG_AFTER=$(stat -c '%u:%g' /fixtures/owned.txt 2>/dev/null || echo ERR)
 UG_UPPER=$(stat -c '%u:%g' "$UPPER/fixtures/owned.txt" 2>/dev/null || echo ABSENT)
 info "after copy-up, ownership through overlay: $UG_AFTER (upper file: $UG_UPPER)"
 
-# Also check a mode bit with a setuid file, which copy-up must not drop.
-MODE_BEFORE=$(stat -c '%a' /fixtures/setuid.bin 2>/dev/null || echo ERR)
-echo x >> /fixtures/setuid.bin 2>/dev/null
-MODE_AFTER=$(stat -c '%a' /fixtures/setuid.bin 2>/dev/null || echo ERR)
-info "setuid file mode before=$MODE_BEFORE after copy-up=$MODE_AFTER"
-
 if [ "$UG_LOWER" != "1234:5678" ]; then
   fail uid-gid "9p did not preserve ownership on the lower layer: got $UG_LOWER, expected 1234:5678"
 elif [ "$UG_AFTER" != "1234:5678" ]; then
   fail uid-gid "copy-up reset ownership: was $UG_LOWER, now $UG_AFTER"
-elif [ "$MODE_BEFORE" != "$MODE_AFTER" ]; then
-  fail uid-gid "copy-up changed mode bits: $MODE_BEFORE -> $MODE_AFTER"
+elif [ "$UG_UPPER" != "1234:5678" ]; then
+  fail uid-gid "copy-up wrote the wrong owner to the upper layer: $UG_UPPER"
 else
-  pass uid-gid "ownership 1234:5678 preserved through 9p and across copy-up; mode $MODE_AFTER kept"
+  pass uid-gid "ownership 1234:5678 preserved through 9p and across copy-up"
+fi
+echo
+
+# The setuid bit is a separate case from ownership, and it needs both halves
+# asserted: that 9p delivered it at all, and that copy-up did not drop it.
+# Checking only "before == after" passes on a layer that never had it.
+echo "TEST setuid-mode"
+MODE_BEFORE=$(stat -c '%a' /fixtures/setuid.bin 2>/dev/null || echo ERR)
+echo x >> /fixtures/setuid.bin 2>/dev/null
+MODE_AFTER=$(stat -c '%a' /fixtures/setuid.bin 2>/dev/null || echo ERR)
+info "setuid file mode: before=$MODE_BEFORE after copy-up=$MODE_AFTER (want 4755 both)"
+if [ "$MODE_BEFORE" != "4755" ]; then
+  fail setuid-mode "9p did not deliver the setuid bit: lower mode reads $MODE_BEFORE, expected 4755"
+elif [ "$MODE_AFTER" != "4755" ]; then
+  fail setuid-mode "copy-up dropped mode bits: $MODE_BEFORE -> $MODE_AFTER"
+else
+  pass setuid-mode "setuid bit survives 9p transport and copy-up (mode 4755)"
 fi
 echo
 

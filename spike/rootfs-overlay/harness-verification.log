@@ -1,0 +1,26 @@
+=== harness verification: breaking the setup on purpose ===
+
+[1] Name the lower xattr something the test does not read.
+    Expect: the xattr test notices user.spike is unreadable.
+  DETECTED: 'xattr-wrong-name' correctly failed test 'xattr'
+    FAIL xattr: upper xattrs work but lower xattr was not readable through the overlay
+
+[2] chown the fixture to the wrong uid/gid (still not root, so the
+    self-check's 'ownership survived' premise is not what catches it).
+    Expect: the uid-gid test notices it is not 1234:5678.
+  DETECTED: 'wrong-owner' correctly failed test 'uid-gid'
+    FAIL uid-gid: 9p did not preserve ownership on the lower layer: got 4321:8765, expected 1234:5678
+
+[3] Serve the 9p lower read-WRITE instead of read-only.
+    Expect: the negative control notices the lower is writable.
+  DETECTED: 'writable-lower' correctly failed test 'negative-control'
+    FAIL negative-control: the 9p lower layer was WRITABLE; it must be read-only for this spike to mean anything
+
+[4] Drop the setuid bit from the lower fixture.
+    Expect: the setuid-mode test notices the bit never arrived.
+  DETECTED: 'no-setuid' correctly failed test 'setuid-mode'
+    FAIL setuid-mode: 9p did not deliver the setuid bit: lower mode reads 755, expected 4755
+
+==============================================
+harness verification PASSED: every mutation was detected
+EXIT=0

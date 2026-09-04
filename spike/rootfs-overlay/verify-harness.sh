@@ -70,10 +70,10 @@ failures=0
 # Mutations 1 and 2 change the fixture to a value that still satisfies the
 # pre-boot self-check, so the failure has to be caught by the test in the
 # guest rather than by the fixture check on the way in.
-echo "[1] Set the lower xattr on a different file than the test reads."
-echo "    Expect: the xattr test notices the lower xattr is unreadable."
-run_mutation "xattr-on-wrong-file" \
-  's|^setfattr -n user.spike -v lower-xattr-value "$LOWER/fixtures/hello.txt"|setfattr -n user.spike -v lower-xattr-value "$LOWER/fixtures/owned.txt"|' \
+echo "[1] Name the lower xattr something the test does not read."
+echo "    Expect: the xattr test notices user.spike is unreadable."
+run_mutation "xattr-wrong-name" \
+  's|^setfattr -n user.spike -v lower-xattr-value|setfattr -n user.decoy -v lower-xattr-value|' \
   "xattr" || failures=$((failures + 1))
 echo
 
@@ -93,10 +93,10 @@ run_mutation "writable-lower" \
 echo
 
 echo "[4] Drop the setuid bit from the lower fixture."
-echo "    Expect: the uid-gid test notices the mode changed."
+echo "    Expect: the setuid-mode test notices the bit never arrived."
 run_mutation "no-setuid" \
-  's|^chmod 4755 .*|chmod 0755 "$LOWER/fixtures/setuid.bin"|' \
-  "uid-gid" || failures=$((failures + 1))
+  's|^chmod 4755 |chmod 0755 |' \
+  "setuid-mode" || failures=$((failures + 1))
 echo
 
 # Restore a clean staging dir so a later run-spike.sh is not left mutated.
