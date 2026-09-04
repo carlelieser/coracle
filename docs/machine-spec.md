@@ -192,6 +192,14 @@ later consumers depend on them, and retrofitting either is expensive:
 Validated under pure QEMU by the M0 spike (`spike/rootfs-overlay/`), which
 settles the kernel-side question only: it uses QEMU's 9p server, not ours.
 
+The spike ran kernel 6.12.107 and QEMU 10.0.11 in a container, while the
+project pins 6.12.108 and QEMU 11.1.1 (`kernel/versions.env`). Both gaps are
+deliberate. The spike containerises QEMU because a macOS bind mount reports
+`chown` success without applying it and rejects xattrs, which would fail the
+uid/gid and xattr cases for a host reason and read as an overlayfs limitation.
+The kernel patch gap is inert: the 6.12.108 changelog touches neither 9p nor
+overlayfs, so the findings below carry unchanged.
+
 The guest mounts `overlayfs(lowerdir=9p merged layers, upperdir=ext4 on
 virtio-blk)` and pivots to it. The kernel owns copy-up, whiteouts, and rename.
 
