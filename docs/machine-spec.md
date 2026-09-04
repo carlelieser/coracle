@@ -58,6 +58,21 @@ exception the architecture requires of an unimplemented encoding, and must do so
 identically to the oracle. Faulting *identically* is a gate condition, not a
 best effort.
 
+### The oracle advertises crypto; we do not
+
+QEMU 11.1.1 exposes no property to disable FEAT_AES/SHA on any AArch64 model —
+crypto is baked into every model's ID registers, `max` included. The pinned
+oracle therefore advertises AES and SHA that this machine does not implement.
+
+This is benign only because guests select code paths by reading
+`ID_AA64ISAR0_EL1`, which the emulator controls, so no guest takes a crypto path
+during a differential run. It does make one thing load-bearing that would
+otherwise be incidental: **the M1 fuzz corpus must not draw crypto encodings.**
+Drawing them would compare against an oracle that executes what we fault on.
+
+`tests/verify_feature_mask.sh` asserts the deviation rather than tolerating it,
+so the gap cannot widen unnoticed if a future QEMU changes its defaults.
+
 ## 3. Memory map, IRQ map, MMIO
 
 **Pending.** Derived from QEMU `virt`'s own generated device tree
@@ -155,7 +170,45 @@ later consumers depend on them, and retrofitting either is expensive:
   write-protection traps, which is what makes a guest JIT (V8 writing its own
   code) safe.
 
-## 8. Non-goals
+## 8. Root filesystem
+
+Validated under pure QEMU by the M0 spike (`spike/rootfs-overlay/`), which
+settles the kernel-side question only: it uses QEMU's 9p server, not ours.
+
+The guest mounts `overlayfs(lowerdir=9p merged layers, upperdir=ext4 on
+virtio-blk)` and pivots to it. The kernel owns copy-up, whiteouts, and rename.
+
+### Constraints our 9p server must satisfy
+
+`spike/rootfs-overlay/9p-checklist.md` is the full list, consumed by the M3
+gates. Two items are easy to implement wrongly and invisible until they corrupt
+something:
+
+- **`qid.path` is guest inode identity.** It is the key into `iget5_locked` via
+  `QID2INO`, so it governs hardlink detection outright. An id derived from the
+  path breaks under rename and collapses distinct files into one inode. Stable,
+  unique, rename-invariant.
+- **`d_type` degrades silently.** Overlayfs checks it on the workdir, not a
+  lower, and only warns. A lower reporting `DT_UNKNOWN` does not fail the mount
+  — whiteouts simply stop working, because whiteout candidates are collected by
+  testing `d_type == DT_CHR`. M3 must assert readdir types directly; no mount
+  failure will catch this.
+
+### Permanent limitation: lower-layer hardlinks
+
+Hardlinks that exist in a lower layer are severed by copy-up: the copied-up file
+becomes an independent inode. Rejoining them requires overlayfs `index=on`,
+which requires the lower to encode file handles, and `fs/9p` defines no
+`export_operations` (verified against upstream v6.12). So `index=off` and
+`xino=off` are forced for any 9p lower.
+
+This is a property of the kernel's 9p **client**, not of QEMU's server, so our
+own server cannot fix it, and the JS-side union fallback would have to solve it
+independently. Docker's `overlay2` severs lower hardlinks the same way, so
+published images tolerate it. M3 and M4 note the behavior; neither works around
+it.
+
+## 9. Non-goals
 
 Not implemented in v1, and changes require written justification: AArch32,
 big-endian, GPU or framebuffer, USB, multi-core SMP, Windows or macOS guests,
