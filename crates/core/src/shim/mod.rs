@@ -80,12 +80,13 @@ impl<H: HostIo> Shim<H> {
     /// The budget bounds total instructions across all resumptions, so a guest
     /// that never exits still returns control.
     pub fn run<M: Memory, S: TraceSink>(&mut self, cpu: &mut Cpu<M, S>, budget: u64) -> ShimExit {
-        let mut remaining = budget;
-        while remaining > 0 {
-            match cpu.run(remaining) {
+        // `icount` is the CPU's lifetime total, so the budget is tracked
+        // against where it started rather than by subtracting it each pass.
+        let deadline = cpu.icount().saturating_add(budget);
+        while cpu.icount() < deadline {
+            match cpu.run(deadline - cpu.icount()) {
                 Stop::BudgetExhausted => return ShimExit::BudgetExhausted,
                 Stop::Trapped(Trap::SupervisorCall { pc, .. }) => {
-                    remaining = remaining.saturating_sub(cpu.icount());
                     if let Some(status) = self.service(cpu) {
                         return ShimExit::Exited(status);
                     }
