@@ -85,9 +85,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Adding Firefox from M2 is appending `firefox` here; Safari additionally
-        # needs `os: macos-latest`, which is why `os` is already a matrix axis
-        # rather than hardcoded. See the `include:` block for how that is spelt.
+        # Adding Firefox from M2 is appending `firefox` here plus a matching
+        # setup step below; Safari additionally needs `os: macos-latest`, which
+        # is why `os` is already a matrix axis rather than hardcoded.
         browser: [chrome]
         os: [ubuntu-latest]
         # Both wasm builds are first-class and both must stay green. The
@@ -116,9 +116,11 @@ jobs:
           # fails at the bindgen step with a schema error.
           tool: wasm-bindgen-cli@0.2.127
 
-      - name: Install browser driver
-        uses: browser-actions/setup-${{ matrix.browser }}@v2
-        id: browser
+      # `uses:` is resolved before the matrix exists, so it cannot interpolate
+      # `matrix.browser`; the driver gets one guarded step per browser instead.
+      - name: Install browser driver (chrome)
+        if: matrix.browser == 'chrome'
+        uses: browser-actions/setup-chrome@v2
 
       # The runner starts its own server and driver; the driver binary must match
       # the installed browser, which the setup action guarantees.
