@@ -24,16 +24,17 @@ jobs:
     name: format
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       # rust-toolchain.toml pins the version; no toolchain input here, or the
       # two would drift.
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-08-01
           components: rustfmt
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
       - run: npm ci
       # One formatter per language, both required: rustfmt for Rust, Prettier
       # for everything else.
@@ -46,7 +47,7 @@ jobs:
     name: clippy
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-08-01
@@ -59,7 +60,7 @@ jobs:
     name: test (native)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-08-01
@@ -72,10 +73,11 @@ jobs:
     name: test (js)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
         with:
           node-version: 22
+          cache: npm
       - run: npm ci
       - run: npm test
 
@@ -99,7 +101,7 @@ jobs:
           - name: single-threaded
             command: wasm-test-st
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: nightly-2026-08-01
