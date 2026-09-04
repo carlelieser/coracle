@@ -293,7 +293,9 @@ fn system_register_moves_pack_their_five_encoding_fields() {
         panic!("expected System, got {:?}", mrs.form);
     };
     assert_eq!(rt, Gpr::X(1));
-    assert_eq!(sysreg, (3 << 14) | (3 << 11) | (13 << 7) | (0 << 3) | 2);
+    // CRm is zero for this register, so it contributes nothing to the packing;
+    // the other four fields are what must survive.
+    assert_eq!(sysreg, (3 << 14) | (3 << 11) | (13 << 7) | 2);
 
     // msr tpidr_el0, x0 — the same register, written.
     let msr = decode(0xd51b_d040);
