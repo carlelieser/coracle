@@ -87,7 +87,7 @@ Deliverables
 Gate
 - [ ] Differential test: 100% register-state match against QEMU on a 10,000-binary fuzz corpus (random A64 instructions drawn from the advertised feature mask; unallocated encodings must fault identically) and on the full musl test suite compiled static. FP legs run in precise mode; the native FP backend passes a separate default-mode equivalence suite that ignores NaN payload bits.
 - [ ] Static `busybox` runs `sh -c 'echo hi | wc -c'` correctly under the shim.
-- [ ] Exclusive-monitor (`LDXR`/`STXR` loops) and TLS (`TPIDR_EL0`) corpus passes. The shim stays single-threaded — `clone`/`futex` are explicitly out of shim scope; real threads arrive with the kernel at M2, and the `node` smoke test lands at M3, where it also has a filesystem to run from.
+- [ ] Exclusive-monitor (`LDXR`/`STXR` loops) and TLS (`TPIDR_EL0`) corpus passes. The shim stays single-threaded — `clone`/`futex` are explicitly out of shim scope; real threads arrive with the kernel at M2, and the `node` smoke test lands at M3.
 - [ ] Interpreter ≤ 60× slower than native on the benchmark, and ≥ 40 guest MIPS absolute on a boot-profile workload (the absolute number, not the ratio, is what predicts the M2 60 s boot bound).
 
 ---
@@ -117,14 +117,6 @@ Gate
 - [ ] Differential test against QEMU (TCG-plugin trace) on the first 50 million instructions of boot: identical register and system-register state at every exception entry.
 - [ ] Cold boot to shell ≤ 60 s in Chrome on the reference laptop. (Snapshots come later; this bounds interpreter quality.)
 
-The `node` smoke test is deliberately **not** here; it moved to the M3 gate.
-It needs a filesystem that pages in on demand: no fully static build exists
-(the musl build needs a loader plus `libc.so` and `libgcc_s.so.1`), and at
-~96 MB stripped it would grow the initramfs from ~1 MB to ~97 MB, decompressed
-into RAM on every boot of every image against a 1 GB guest. M2 therefore
-proves threading through `fork`/`exec` and the differential trace; V8 and libuv
-exercise it harder one milestone later, on the root filesystem M3 delivers.
-
 This is the go/no-go milestone. If M2 cannot be met, stop and reassess the approach.
 
 ---
@@ -146,7 +138,7 @@ Deliverables
 
 Gate
 - [ ] Kernel pivots to the overlayfs root (9p lower, ext4-on-blk upper) and boots from it instead of initramfs.
-- [ ] `node` on the overlayfs root prints `console.log(1+1)` (moved M1 -> M2 -> here: V8 and libuv need real threads, which need the kernel, and the binary needs a filesystem that pages in on demand — see the M2 scope note).
+- [ ] `node` on the overlayfs root prints `console.log(1+1)`.
 - [ ] `fio`-style sequential read ≥ 20 MB/s from a cached disk; random 4 KB read ≥ 2,000 IOPS.
 - [ ] 9p: `tar -xf` of a 10,000-file archive into a 9p mount and back produces a byte-identical archive.
 - [ ] Our 9p server passes the M0 spike's feature checklist as an overlayfs lower (d_type, stable QIDs, xattrs, hardlinks) — same overlayfs test matrix, our server instead of QEMU's.
