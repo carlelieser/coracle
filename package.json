@@ -1,0 +1,22 @@
+{
+  "name": "coracle",
+  "version": "0.0.0",
+  "description": "arm64 full-system emulator for WebAssembly.",
+  "license": "Apache-2.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "js"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "test": "npm run test --workspaces --if-present",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "3.4.2"
+  }
+}
