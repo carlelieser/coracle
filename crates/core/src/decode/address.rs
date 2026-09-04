@@ -40,15 +40,18 @@ pub enum AddrMode {
         /// Whether and when the base is updated.
         writeback: WriteBack,
     },
-    /// `[base, Xm, extend #amount]`.
+    /// `[base, Xm, extend #amount]`, and `[base], Xm` with write-back.
     ///
     /// The shift amount is 0 or `log2(access size)`, selected by the `S` bit;
-    /// the decoder has resolved it.
+    /// the decoder has resolved it. Write-back is post-indexed only, and only
+    /// the `LD1`–`LD4` structure forms use it.
     Register {
         /// Base register, `SP` for slot 31.
         base: Gpr,
         /// Index register with its extension and scale.
         index: ExtendedReg,
+        /// Whether and when the base is updated.
+        writeback: WriteBack,
     },
     /// `label` — PC-relative, as used by `LDR (literal)`.
     ///
@@ -84,6 +87,9 @@ impl AddrMode {
         matches!(
             self,
             AddrMode::Immediate {
+                writeback: WriteBack::Pre | WriteBack::Post,
+                ..
+            } | AddrMode::Register {
                 writeback: WriteBack::Pre | WriteBack::Post,
                 ..
             }
@@ -187,7 +193,8 @@ mod tests {
                     reg: Gpr::X(1),
                     kind: ExtendKind::Uxtx,
                     amount: 3
-                }
+                },
+                writeback: WriteBack::None,
             }
             .base(),
             Some(base)

@@ -240,12 +240,15 @@ pub enum VecShape {
     /// A single element of the given width, in lane 0, upper bits zeroed on
     /// write.
     Scalar(ElemSize),
-    /// `count` elements of `elem` width, filling the low 64 or full 128 bits.
+    /// `count` elements of `elem` width, taken from one half or the whole
+    /// register.
     Vector {
         /// Element width.
         elem: ElemSize,
         /// Number of active lanes.
         count: u8,
+        /// Which 64-bit half the lanes are taken from.
+        half: VecHalf,
     },
     /// A single addressed lane of a vector register, for `INS`, `DUP`, `MOV`
     /// element forms and the indexed-element FP/NEON encodings.
@@ -255,6 +258,48 @@ pub enum VecShape {
         /// Lane index.
         index: u8,
     },
+}
+
+/// Rounding mode an FP instruction names in its own encoding.
+///
+/// `FCVTAS`, `FCVTMS`, `FCVTNS`, `FCVTPS`, `FCVTZS` and the `FRINT` family
+/// differ only in this, so it is a field rather than one opcode each.
+/// [`RoundMode::Current`] means the mode in FPCR, which is what `FRINTI` and
+/// `FCVTxS (FPCR)` use.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum RoundMode {
+    /// Whatever FPCR.RMode currently selects.
+    #[default]
+    Current,
+    /// To nearest, ties to even — `N`.
+    Nearest,
+    /// To nearest, ties away from zero — `A`.
+    NearestAway,
+    /// Toward positive infinity — `P`.
+    Plus,
+    /// Toward negative infinity — `M`.
+    Minus,
+    /// Toward zero — `Z`.
+    Zero,
+    /// To nearest, ties to odd. `FCVTXN` only.
+    Odd,
+}
+
+/// Which 64-bit half of a register a vector operand's lanes occupy.
+///
+/// The `Q` bit of the widening and narrowing encodings selects this: `UADDL`
+/// reads the low half of its sources, `UADDL2` the high half, and `XTN2` writes
+/// the high half of its destination. Every mnemonic with a `2` suffix differs
+/// from its base form only here.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
+pub enum VecHalf {
+    /// All `count` lanes, filling the register. The usual case.
+    #[default]
+    Full,
+    /// Lanes in the low 64 bits; the upper half is zeroed on write.
+    Low,
+    /// Lanes in the high 64 bits — the `2` mnemonics.
+    High,
 }
 
 /// SIMD/FP element width.

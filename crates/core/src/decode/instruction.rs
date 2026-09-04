@@ -20,7 +20,7 @@
 
 use super::address::{AccessSize, AddrMode, Ordering};
 use super::op::Op;
-use super::operand::{Cond, ExtendedReg, RegWidth, ShiftedReg, VecOperand};
+use super::operand::{Cond, ExtendedReg, RegWidth, RoundMode, ShiftedReg, VecOperand};
 use crate::reg::{Gpr, Vec};
 
 /// A fully decoded A64 instruction.
@@ -30,10 +30,18 @@ pub struct Instruction {
     pub op: Op,
     /// Where its operands are.
     pub form: Form,
-    /// Integer operand width. Meaningless for the SIMD/FP forms, which carry
-    /// their width in [`VecOperand::shape`]; it is set to
-    /// [`RegWidth::X64`] there.
+    /// Width of the instruction's general-purpose operands.
+    ///
+    /// Load-bearing wherever a `Gpr` appears, which includes
+    /// [`Form::VecGprMove`]: `SCVTF S0, W0` and `SCVTF S0, X0` differ only in
+    /// `sf`. It is [`RegWidth::X64`] and unread for the forms with no `Gpr`
+    /// operand, whose widths live in [`VecOperand::shape`].
     pub width: RegWidth,
+    /// Rounding mode named by the encoding itself.
+    ///
+    /// [`RoundMode::Current`] — the default — means FPCR decides, which is the
+    /// case for every instruction outside the `FCVTxS`/`FRINT` families.
+    pub round: RoundMode,
     /// Whether the instruction updates NZCV.
     ///
     /// A field rather than separate `Adds`/`Add` opcodes: the flag-setting and
@@ -56,6 +64,7 @@ impl Instruction {
             op,
             form,
             width: RegWidth::X64,
+            round: RoundMode::Current,
             sets_flags: false,
             encoding,
         }
@@ -64,6 +73,12 @@ impl Instruction {
     /// Sets the integer operand width.
     pub const fn with_width(mut self, width: RegWidth) -> Self {
         self.width = width;
+        self
+    }
+
+    /// Sets the rounding mode the encoding names.
+    pub const fn with_round(mut self, round: RoundMode) -> Self {
+        self.round = round;
         self
     }
 
@@ -92,6 +107,31 @@ pub enum Form {
         rn: Gpr,
         /// Resolved immediate.
         imm: u64,
+    },
+    /// `Rd, #imm16, LSL #shift` — move wide: `MOVZ`, `MOVN`, `MOVK`.
+    ///
+    /// The halfword and its position stay separate rather than being folded
+    /// into one `u64`. `MOVK` merges into only the selected halfword and
+    /// preserves the other three, so a pre-shifted immediate of zero would not
+    /// say which halfword to overwrite.
+    MoveWide {
+        /// Destination.
+        rd: Gpr,
+        /// The 16-bit `imm16` field, unshifted.
+        imm16: u16,
+        /// Halfword position: `hw * 16` is the left shift.
+        hw: u8,
+    },
+    /// `Rd, #offset` — PC-relative address formation: `ADR`, `ADRP`.
+    ///
+    /// `ADRP` scales its offset by the 4 KiB page and forms the result from the
+    /// page-aligned PC; the decoder applies the scaling, and the [`Op`] says
+    /// whether the PC is aligned first.
+    PcRelAddr {
+        /// Destination.
+        rd: Gpr,
+        /// Signed byte offset from this instruction's own address.
+        offset: i64,
     },
     /// `Rd, Rn, Rm{, shift #amount}` — data processing (register).
     RegShifted {
@@ -185,38 +225,54 @@ pub enum Form {
         /// Branch target register.
         rn: Gpr,
     },
-    /// `Rt, addr` — single-register load or store.
+    /// `Rt{, Rt2}, addr` — load or store of one or two registers.
+    ///
+    /// One variant rather than separate single and pair forms: `LDP`, `STP`,
+    /// `LDXP` and `STXP` differ from their single-register counterparts only in
+    /// whether `rt2` is present, and splitting them would duplicate the
+    /// address-generation arm.
     LoadStore {
-        /// Transferred register.
-        rt: Gpr,
-        /// Address computation.
-        addr: AddrMode,
-        /// Access width and sign-extension.
-        size: AccessSize,
-        /// Ordering and exclusivity.
-        ordering: Ordering,
-    },
-    /// `Rt, Rt2, addr` — load/store pair, and the `STXP` status form.
-    LoadStorePair {
         /// First transferred register.
         rt: Gpr,
-        /// Second transferred register.
-        rt2: Gpr,
-        /// Status register for `STXR`/`STXP`; [`Gpr::ZR`] otherwise.
-        rs: Gpr,
+        /// Second transferred register, for the pair forms.
+        rt2: Option<Gpr>,
+        /// Status register written by `STXR`/`STLXR`/`STXP`.
+        ///
+        /// `None` for every non-exclusive access. It cannot be [`Gpr::ZR`] as a
+        /// sentinel: `STP xzr, xzr, [sp]` makes `ZR` a legal operand.
+        rs: Option<Gpr>,
         /// Address computation.
         addr: AddrMode,
-        /// Access width of each element.
+        /// Access width of each transferred register.
         size: AccessSize,
         /// Ordering and exclusivity.
         ordering: Ordering,
     },
-    /// `Vt, addr` — SIMD/FP load or store.
+    /// `#prfop, addr` — `PRFM` and `PRFUM`.
+    ///
+    /// Separate from [`Form::LoadStore`] because the `Rt` slot holds a 5-bit
+    /// prefetch operation, not a register: reading it as one would turn
+    /// `PRFM #31` into [`Gpr::ZR`], and no data is transferred at all.
+    Prefetch {
+        /// The 5-bit `prfop` field: type, target and policy.
+        prfop: u8,
+        /// Address computation.
+        addr: AddrMode,
+    },
+    /// `{Vt..}, addr` — SIMD/FP load or store.
+    ///
+    /// Covers the scalar transfers, `LDP`/`STP` of FP registers, and the
+    /// `LD1`–`LD4` structure forms. The register list is a base plus a count
+    /// rather than a set, because the architecture only ever names consecutive
+    /// registers, wrapping modulo 32.
     LoadStoreVec {
-        /// Transferred SIMD/FP register.
+        /// First transferred register, and the shape each one is accessed with.
         vt: VecOperand,
-        /// Second transferred register for the pair forms.
-        vt2: Option<Vec>,
+        /// Registers transferred, counting `vt`: 1–4.
+        ///
+        /// 2 also covers the FP pair forms; [`Op`] says whether the access
+        /// de-interleaves.
+        count: u8,
         /// Address computation.
         addr: AddrMode,
         /// Ordering and exclusivity.
@@ -248,7 +304,7 @@ pub enum Form {
         /// Resolved immediate, expanded from the encoding.
         imm: u64,
     },
-    /// `Vd, Vn, Vm, cond` — `FCSEL`, and `FCCMP` after the decoder rewrites it.
+    /// `Vd, Vn, Vm, cond` — `FCSEL`.
     VecCond {
         /// Destination.
         vd: VecOperand,
@@ -258,6 +314,45 @@ pub enum Form {
         vm: VecOperand,
         /// Condition tested.
         cond: Cond,
+    },
+    /// `Vn, Vm, #nzcv, cond` — `FCCMP`, `FCCMPE`.
+    ///
+    /// Distinct from [`Form::VecCond`] because it has no destination and needs
+    /// the substituted flags, and from [`Form::CondCompare`] because its
+    /// operands are SIMD/FP registers.
+    VecCondCompare {
+        /// First compared register.
+        vn: VecOperand,
+        /// Second compared register.
+        vm: VecOperand,
+        /// NZCV substituted when the condition fails.
+        nzcv: u8,
+        /// Condition tested.
+        cond: Cond,
+    },
+    /// `Vn, Vm` or `Vn, #0.0` — `FCMP`, `FCMPE`.
+    ///
+    /// No destination: the result is NZCV. `vm` is `None` for the
+    /// compare-with-zero encodings, which have no second register operand.
+    VecCompare {
+        /// First compared register.
+        vn: VecOperand,
+        /// Second compared register, absent for the zero forms.
+        vm: Option<VecOperand>,
+    },
+    /// `Vd, {Vn..}, Vm` — `TBL`, `TBX`.
+    ///
+    /// The table is 1–4 consecutive registers, so it is a base plus a length
+    /// rather than a source list; no other form needs more than three sources.
+    TableLookup {
+        /// Destination.
+        vd: VecOperand,
+        /// First table register.
+        table: Vec,
+        /// Table registers, counting `table`: 1–4.
+        table_len: u8,
+        /// Index register.
+        vm: VecOperand,
     },
     /// `Rd, Vn` or `Vd, Rn` — transfers between the two register files:
     /// `FMOV`, `SCVTF`, `FCVTZS`, `UMOV`, `INS`.

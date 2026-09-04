@@ -181,6 +181,24 @@ pub enum Op {
     Stlr,
     /// Prefetch memory.
     Prfm,
+    /// Load multiple single-element structures.
+    Ld1,
+    /// Load and de-interleave two-element structures.
+    Ld2,
+    /// Load and de-interleave three-element structures.
+    Ld3,
+    /// Load and de-interleave four-element structures.
+    Ld4,
+    /// Load one element and replicate it across every lane.
+    Ld1r,
+    /// Store multiple single-element structures.
+    St1,
+    /// Store and interleave two-element structures.
+    St2,
+    /// Store and interleave three-element structures.
+    St3,
+    /// Store and interleave four-element structures.
+    St4,
 
     // ---- FP and NEON ----
     /// FP move, including the immediate and register-file transfer forms.
@@ -211,6 +229,24 @@ pub enum Op {
     Fcsel,
     /// FP convert precision.
     Fcvt,
+    /// FP convert and narrow.
+    Fcvtn,
+    /// FP convert and widen.
+    Fcvtl,
+    /// FP round to integral, in the mode named by [`super::operand::RoundMode`].
+    Frint,
+    /// FP convert to signed integer, in a named rounding mode.
+    Fcvts,
+    /// FP convert to unsigned integer, in a named rounding mode.
+    Fcvtu,
+    /// FP fused multiply-add to accumulator.
+    Fmla,
+    /// FP fused multiply-subtract from accumulator.
+    Fmls,
+    /// FP maximum.
+    Fmax,
+    /// FP minimum.
+    Fmin,
     /// FP convert to signed integer, round toward zero.
     Fcvtzs,
     /// FP convert to unsigned integer, round toward zero.
@@ -231,6 +267,34 @@ pub enum Op {
     VecEor,
     /// Vector compare equal.
     VecCmeq,
+    /// Vector multiply.
+    VecMul,
+    /// Vector multiply-add to accumulator.
+    VecMla,
+    /// Vector multiply-subtract from accumulator.
+    VecMls,
+    /// Vector bitwise select.
+    VecBsl,
+    /// Vector bitwise insert if true.
+    VecBit,
+    /// Vector bitwise insert if false.
+    VecBif,
+    /// Unsigned add long.
+    Uaddl,
+    /// Signed add long.
+    Saddl,
+    /// Unsigned multiply long.
+    Umull,
+    /// Signed multiply long.
+    Smull,
+    /// Extract narrow.
+    Xtn,
+    /// Shift right narrow.
+    Shrn,
+    /// Unsigned shift left.
+    Ushl,
+    /// Signed shift left.
+    Sshl,
     /// Move immediate to vector.
     Movi,
     /// Move inverted immediate to vector.
@@ -243,8 +307,10 @@ pub enum Op {
     Umov,
     /// Signed move vector element to general-purpose register.
     Smov,
-    /// Table lookup.
+    /// Table lookup, zeroing out-of-range indices.
     Tbl,
+    /// Table lookup, preserving the destination for out-of-range indices.
+    Tbx,
     /// Extract vector from pair.
     Ext,
 }

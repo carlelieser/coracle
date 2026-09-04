@@ -134,6 +134,8 @@ pub fn loads_and_stores(encoding: u32) -> Instruction {
     };
     let form = Form::LoadStore {
         rt: Gpr::from_index_zr(bits(encoding, 4, 0) as u8),
+        rt2: None,
+        rs: None,
         addr,
         size,
         ordering: Ordering::PLAIN,
@@ -337,6 +339,8 @@ mod tests {
             insn.form,
             Form::LoadStore {
                 rt: Gpr::X(0),
+                rt2: None,
+                rs: None,
                 addr: AddrMode::Immediate {
                     base: Gpr::X(1),
                     offset: 16,
