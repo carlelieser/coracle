@@ -1,0 +1,68 @@
+#!/bin/sh
+# initramfs PID 1. Assembles the overlay root exactly as M3 will, switches
+# into it, and runs the test matrix from inside the new root.
+#
+# Layout:
+#   /mnt/lower  9p, tag "lower"   (read-only lower layer, QEMU virtfs)
+#   /mnt/upper  ext4 on vda       (writable upper + work dir)
+#   /mnt/root   the overlay mount, which becomes /
+set -u
+
+echo "init: starting"
+mkdir -p /proc /sys /dev /mnt/lower /mnt/upper /mnt/root
+mount -t proc proc /proc
+mount -t sysfs sysfs /sys
+mount -t devtmpfs devtmpfs /dev
+
+fail() {
+  echo "init: FATAL: $*"
+  echo "SPIKE_RESULT: BOOT_FAILED"
+  poweroff -f
+  sleep 100
+}
+
+# --- lower layer: 9p over virtio-mmio ---
+# msize is deliberately explicit; the default is small enough to hurt.
+# cache=loose is what we will realistically run with; see 9p-checklist.md.
+echo "init: mounting 9p lower"
+mount -t 9p -o trans=virtio,version=9p2000.L,msize=512000,cache=loose,access=client \
+  lower /mnt/lower || fail "9p mount failed"
+
+# --- upper layer: ext4 on virtio-blk ---
+echo "init: preparing ext4 upper"
+if ! mount -t ext4 /dev/vda /mnt/upper 2>/dev/null; then
+  fail "ext4 mount of /dev/vda failed (image not formatted?)"
+fi
+mkdir -p /mnt/upper/upper /mnt/upper/work
+
+# --- the overlay ---
+echo "init: mounting overlay"
+mount -t overlay overlay \
+  -o lowerdir=/mnt/lower,upperdir=/mnt/upper/upper,workdir=/mnt/upper/work \
+  /mnt/root || fail "overlay mount failed"
+
+echo "init: overlay mounted; pivoting"
+echo "--- overlayfs/9p kernel messages ---"
+dmesg | grep -iE "overlayfs|9p|virtio|EXT4-fs" | tail -20
+echo "--- end kernel messages ---"
+
+# Carry the test suite into the new root, and give it the mount points it needs.
+mkdir -p /mnt/root/proc /mnt/root/sys /mnt/root/dev
+cp -a /spike /mnt/root/spike
+chmod +x /mnt/root/spike/run-tests.sh /mnt/root/spike/stage2.sh
+
+# pivot_root cannot be used here: the initramfs root is rootfs, which the
+# kernel refuses to pivot away from. switch_root is the supported path, and it
+# is what a real initramfs does.
+#
+# The tests need to inspect each layer separately, so bind them into the new
+# root under /layers. /layers itself is a tmpfs, deliberately: binding the
+# upper layer to a path inside the overlay's own upperdir would nest the
+# overlay in its own storage.
+mkdir -p /mnt/root/layers
+mount -t tmpfs tmpfs /mnt/root/layers || fail "layers tmpfs mount failed"
+mkdir -p /mnt/root/layers/lower /mnt/root/layers/upper
+mount --bind /mnt/lower /mnt/root/layers/lower || fail "could not bind lower"
+mount --bind /mnt/upper /mnt/root/layers/upper || fail "could not bind upper"
+
+exec switch_root /mnt/root /spike/stage2.sh

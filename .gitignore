@@ -3,3 +3,5 @@ node_modules/
 /js/dist
 /crates/wasm/pkg
 .DS_Store
+
+spike/rootfs-overlay/build/
