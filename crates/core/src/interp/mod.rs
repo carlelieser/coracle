@@ -90,6 +90,15 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
         self.icount
     }
 
+    /// Instructions that had to be decoded rather than served from the cache.
+    ///
+    /// Exposed because the decoded-instruction cache is what the M1
+    /// performance risk rests on: throughput alone would not notice the cache
+    /// silently missing on a fast enough machine.
+    pub const fn decode_count(&self) -> u64 {
+        self.cache.misses()
+    }
+
     /// Runs until a trap or until `budget` instructions have retired.
     ///
     /// `budget` bounds the loop so the single-threaded build can return to the

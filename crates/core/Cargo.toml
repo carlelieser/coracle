@@ -5,6 +5,9 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+# `kernels.rs` under benches/ is a module of the benchmark, not a benchmark
+# itself; without this cargo builds it as its own target too.
+autobenches = false
 
 [features]
 default = ["threads"]
@@ -17,6 +20,12 @@ trace = []
 # will consume it at the gate and read back its JSON.
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
 serde_json = "1"
+
+# Throughput report, not a libtest harness: it prints MIPS and a pass/fail
+# against the M1 gate. Native-only, as serde_json above is.
+[[bench]]
+name = "interp_mips"
+harness = false
 
 [lints]
 workspace = true
