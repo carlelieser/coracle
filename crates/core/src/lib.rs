@@ -14,6 +14,7 @@ pub mod interp;
 pub mod pstate;
 pub mod reg;
 pub mod regfile;
+pub mod shim;
 pub mod threading;
 pub mod trace;
 pub mod trap;
