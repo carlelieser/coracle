@@ -117,7 +117,7 @@ jobs:
           tool: wasm-bindgen-cli@0.2.127
 
       - name: Install browser driver
-        uses: browser-actions/setup-${{ matrix.browser }}@latest
+        uses: browser-actions/setup-${{ matrix.browser }}@v2
         id: browser
 
       # The runner starts its own server and driver; the driver binary must match
