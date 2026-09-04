@@ -1,0 +1,15 @@
+[package]
+name = "coracle-core"
+description = "AArch64 CPU and stage-1 MMU."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[features]
+default = ["threads"]
+# Shared linear memory + Atomics.wait. Off for the Safari degraded build.
+threads = []
+
+[lints]
+workspace = true

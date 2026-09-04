@@ -1,0 +1,138 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CARGO_TERM_COLOR: always
+  # Deliberately no RUSTFLAGS here. Cargo takes rustflags from a single source,
+  # so the environment variable would replace — not extend — the target flags the
+  # `wasm`/`wasm-test` aliases inject, silently dropping +atomics and building
+  # the threaded variant against a non-atomics sysroot. Warnings are denied via
+  # [workspace.lints] in Cargo.toml, which composes correctly, and the
+  # `atomics_are_available_exactly_when_this_is_a_threaded_build` browser test
+  # fails if the flags ever go missing again.
+
+jobs:
+  format:
+    name: format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      # rust-toolchain.toml pins the version; no toolchain input here, or the
+      # two would drift.
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-08-01
+          components: rustfmt
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      # One formatter per language, both required: rustfmt for Rust, Prettier
+      # for everything else.
+      - name: rustfmt
+        run: cargo fmt --all --check
+      - name: prettier
+        run: npm run format:check
+
+  clippy:
+    name: clippy
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-08-01
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+      # --all-targets so tests and benches are linted too, not just lib code.
+      - run: cargo clippy --workspace --all-targets --all-features
+
+  test-native:
+    name: test (native)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-08-01
+      - uses: Swatinem/rust-cache@v2
+      # The native run is the fast feedback loop and the only one that can use a
+      # debugger; it exercises everything not behind `target_arch = "wasm32"`.
+      - run: cargo test --workspace
+
+  test-js:
+    name: test (js)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm ci
+      - run: npm test
+
+  test-wasm:
+    name: test (wasm, ${{ matrix.variant.name }}, ${{ matrix.browser }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # Adding Firefox from M2 is appending `firefox` here; Safari additionally
+        # needs `os: macos-latest`, which is why `os` is already a matrix axis
+        # rather than hardcoded. See the `include:` block for how that is spelt.
+        browser: [chrome]
+        os: [ubuntu-latest]
+        # Both wasm builds are first-class and both must stay green. The
+        # single-threaded one is the Safari fallback; it rots the moment it stops
+        # being built, so it is not optional or allowed to fail.
+        variant:
+          - name: threaded
+            command: wasm-test
+          - name: single-threaded
+            command: wasm-test-st
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: nightly-2026-08-01
+          targets: wasm32-unknown-unknown
+          # `-Z build-std` rebuilds the sysroot from source, so the threaded
+          # variant cannot link without rust-src.
+          components: rust-src
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install wasm-bindgen-test-runner
+        uses: taiki-e/install-action@v2
+        with:
+          # Must match the wasm-bindgen version in Cargo.toml exactly; a mismatch
+          # fails at the bindgen step with a schema error.
+          tool: wasm-bindgen-cli@0.2.127
+
+      - name: Install browser driver
+        uses: browser-actions/setup-${{ matrix.browser }}@latest
+        id: browser
+
+      # The runner starts its own server and driver; the driver binary must match
+      # the installed browser, which the setup action guarantees.
+      - name: Run browser tests
+        run: cargo ${{ matrix.variant.command }} -p coracle-wasm
+
+  # A single required check, so branch protection does not have to enumerate a
+  # matrix that grows every milestone.
+  ci:
+    name: ci
+    if: always()
+    needs: [format, clippy, test-native, test-js, test-wasm]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Fail if any job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: exit 1

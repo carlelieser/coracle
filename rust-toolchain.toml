@@ -1,0 +1,8 @@
+# Nightly is required, not a preference: the shared-memory build needs
+# `-Z build-std` to rebuild core/alloc with the atomics target features
+# (see .cargo/config.toml), and that flag is nightly-only.
+[toolchain]
+channel = "nightly-2026-08-01"
+components = ["rust-src", "rustfmt", "clippy"]
+targets = ["wasm32-unknown-unknown"]
+profile = "minimal"
