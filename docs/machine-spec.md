@@ -44,34 +44,18 @@ are **not** implemented and must read as absent in their `ID_AA64*` fields:
 | Crypto (AES/SHA/PMULL) | `ID_AA64ISAR0_EL1.{AES,SHA1,SHA2,SHA3,SM3,SM4}` |
 | BTI | `ID_AA64PFR1_EL1.BT` |
 
-Rationale: a small ISA surface, and libc/JIT feature detection picks portable
-code paths. Two consequences bind other work:
-
-- The QEMU oracle must be launched with a `-cpu` mask matching this table
-  exactly. An oracle advertising features we do not implement makes every
-  differential run noise.
-- The guest kernel must be configured not to require or opportunistically use
-  these. A kernel built expecting LSE atomics will not run here.
-
 An instruction encoding belonging to an unadvertised feature raises the same
-exception the architecture requires of an unimplemented encoding, and must do so
-identically to the oracle. Faulting *identically* is a gate condition, not a
-best effort.
+exception the architecture requires of an unimplemented encoding, identically to
+the oracle.
 
-### The oracle advertises crypto; we do not
+Requirements:
 
-QEMU 11.1.1 exposes no property to disable FEAT_AES/SHA on any AArch64 model —
-crypto is baked into every model's ID registers, `max` included. The pinned
-oracle therefore advertises AES and SHA that this machine does not implement.
-
-This is benign only because guests select code paths by reading
-`ID_AA64ISAR0_EL1`, which the emulator controls, so no guest takes a crypto path
-during a differential run. It does make one thing load-bearing that would
-otherwise be incidental: **the M1 fuzz corpus must not draw crypto encodings.**
-Drawing them would compare against an oracle that executes what we fault on.
-
-`tests/verify_feature_mask.sh` asserts the deviation rather than tolerating it,
-so the gap cannot widen unnoticed if a future QEMU changes its defaults.
+- The QEMU oracle runs with a `-cpu` mask matching this table.
+- The guest kernel is configured not to require or opportunistically use these
+  features.
+- The M1 fuzz corpus draws no crypto encodings. QEMU 11.1.1 cannot disable
+  FEAT_AES/SHA on any AArch64 model, so the oracle executes crypto this machine
+  faults on. `tests/verify_feature_mask.sh` asserts the deviation.
 
 ## 3. Memory map, IRQ map, MMIO
 
@@ -179,59 +163,41 @@ green in CI, for browsers where SharedArrayBuffer is unavailable or quirky.
 
 ### Page tracking
 
-The MMU maintains **dirty** and **executed** page bitmaps from M2 onward. Two
-later consumers depend on them, and retrofitting either is expensive:
+The MMU maintains **dirty** and **executed** page bitmaps from M2 onward.
+Consumers:
 
 - Snapshots serialize only dirty RAM pages.
 - The JIT evicts translations using the executed-page bitmap plus
-  write-protection traps, which is what makes a guest JIT (V8 writing its own
-  code) safe.
+  write-protection traps, covering guest-generated code (V8).
 
 ## 8. Root filesystem
-
-Validated under pure QEMU by the M0 spike (`spike/rootfs-overlay/`), which
-settles the kernel-side question only: it uses QEMU's 9p server, not ours.
-
-The spike ran kernel 6.12.107 and QEMU 10.0.11 in a container, while the
-project pins 6.12.108 and QEMU 11.1.1 (`kernel/versions.env`). Both gaps are
-deliberate. The spike containerises QEMU because a macOS bind mount reports
-`chown` success without applying it and rejects xattrs, which would fail the
-uid/gid and xattr cases for a host reason and read as an overlayfs limitation.
-The kernel patch gap is inert: the 6.12.108 changelog touches neither 9p nor
-overlayfs, so the findings below carry unchanged.
 
 The guest mounts `overlayfs(lowerdir=9p merged layers, upperdir=ext4 on
 virtio-blk)` and pivots to it. The kernel owns copy-up, whiteouts, and rename.
 
-### Constraints our 9p server must satisfy
+Validated under pure QEMU by the M0 spike (`spike/rootfs-overlay/`), which uses
+QEMU's 9p server and so settles the kernel-side question only.
+
+### Requirements on our 9p server
 
 `spike/rootfs-overlay/9p-checklist.md` is the full list, consumed by the M3
-gates. Two items are easy to implement wrongly and invisible until they corrupt
-something:
+gates. Two are silent when violated:
 
-- **`qid.path` is guest inode identity.** It is the key into `iget5_locked` via
-  `QID2INO`, so it governs hardlink detection outright. An id derived from the
-  path breaks under rename and collapses distinct files into one inode. Stable,
-  unique, rename-invariant.
-- **`d_type` degrades silently.** Overlayfs checks it on the workdir, not a
-  lower, and only warns. A lower reporting `DT_UNKNOWN` does not fail the mount
-  — whiteouts simply stop working, because whiteout candidates are collected by
-  testing `d_type == DT_CHR`. M3 must assert readdir types directly; no mount
-  failure will catch this.
+- **`qid.path` is guest inode identity**, via `QID2INO` into `iget5_locked`, and
+  governs hardlink detection. It must be stable, unique, and rename-invariant; a
+  path-derived id collapses distinct files into one inode.
+- **`d_type` must be reported in readdir.** Overlayfs checks it on the workdir
+  only, and warns rather than failing, so a `DT_UNKNOWN` lower mounts
+  successfully and whiteouts then never match (candidates are collected by
+  testing `d_type == DT_CHR`). M3 asserts readdir types directly.
 
-### Permanent limitation: lower-layer hardlinks
+### Lower-layer hardlinks are severed by copy-up
 
-Hardlinks that exist in a lower layer are severed by copy-up: the copied-up file
-becomes an independent inode. Rejoining them requires overlayfs `index=on`,
-which requires the lower to encode file handles, and `fs/9p` defines no
-`export_operations` (verified against upstream v6.12). So `index=off` and
-`xino=off` are forced for any 9p lower.
-
-This is a property of the kernel's 9p **client**, not of QEMU's server, so our
-own server cannot fix it, and the JS-side union fallback would have to solve it
-independently. Docker's `overlay2` severs lower hardlinks the same way, so
-published images tolerate it. M3 and M4 note the behavior; neither works around
-it.
+`index=off` and `xino=off` are forced for any 9p lower: rejoining copied-up
+hardlinks requires `index=on`, which requires the lower to encode file handles,
+and `fs/9p` defines no `export_operations` (upstream v6.12). This is a property
+of the kernel's 9p client, so no 9p server can change it. Docker's `overlay2`
+behaves the same way. M3 and M4 do not work around it.
 
 ## 9. Non-goals
 
