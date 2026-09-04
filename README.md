@@ -24,15 +24,16 @@ Pinned by `rust-toolchain.toml`; `rustup` installs it on first use. The pin is a
 nightly because the threaded wasm build needs `-Z build-std`, which is not on
 stable. Node 22+ is required for the JS package.
 
-Browser tests need a `chromedriver` on `PATH` whose version matches the installed
-Chrome. `npx @puppeteer/browsers install chromedriver@<version>` gets an exact
-match.
+Browser tests need a `chromedriver` matching the installed Chrome.
+`scripts/chromedriver.sh` fetches and caches one, and prints its path. Without
+it wasm-bindgen falls back to Safari and fails with an opaque driver error.
 
 ## Building and testing
 
 ```sh
 cargo test --workspace   # native
 npm ci && npm test       # js
+export CHROMEDRIVER="$(scripts/chromedriver.sh)"
 cargo wasm-test          # browser, threaded build
 cargo wasm-test-st       # browser, single-threaded build
 cargo fmt --all && npm run format   # rustfmt for Rust, Prettier for the rest
