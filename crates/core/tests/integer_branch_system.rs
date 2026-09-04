@@ -375,3 +375,36 @@ fn the_unallocated_rows_of_the_branch_table_stay_unallocated() {
     // advertised (docs/machine-spec.md §2).
     assert!(decode(0xd560_0000).op.is_unallocated(), "mrrs");
 }
+
+#[test]
+fn the_system_registers_m1_and_m2_actually_touch_all_decode() {
+    // Not an exhaustive list — the point is that the encodings a real guest
+    // emits reach Form::System rather than falling into an unallocated hole.
+    // TPIDR_EL0 is the M1 gate's TLS corpus; the CNT* and EL1 registers are
+    // what M2's boot path reads first.
+    let cases = [
+        (0xd53b_0020u32, Op::Mrs, "ctr_el0"),
+        (0xd53b_00e1, Op::Mrs, "dczid_el0"),
+        (0xd53b_e042, Op::Mrs, "cntvct_el0"),
+        (0xd53b_e003, Op::Mrs, "cntfrq_el0"),
+        (0xd51b_d044, Op::Msr, "tpidr_el0"),
+        (0xd53b_d065, Op::Mrs, "tpidrro_el0"),
+        (0xd53b_4406, Op::Mrs, "fpcr"),
+        (0xd51b_4427, Op::Msr, "fpsr"),
+        (0xd538_0008, Op::Mrs, "midr_el1"),
+        (0xd538_0609, Op::Mrs, "id_aa64isar0_el1"),
+        (0xd538_410a, Op::Mrs, "sp_el0"),
+        (0xd518_402b, Op::Msr, "elr_el1"),
+        (0xd518_c00c, Op::Msr, "vbar_el1"),
+    ];
+
+    for (encoding, op, name) in cases {
+        let insn = decode(encoding);
+        assert_eq!(insn.op, op, "{name}");
+        assert!(
+            matches!(insn.form, Form::System { .. }),
+            "{name}: got {:?}",
+            insn.form
+        );
+    }
+}
