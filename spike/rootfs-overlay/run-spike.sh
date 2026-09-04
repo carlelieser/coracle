@@ -29,7 +29,7 @@ docker run --rm --platform linux/arm64 \
     apt-get install -y -qq --no-install-recommends \
       qemu-system-arm attr e2fsprogs cpio gzip file >/dev/null
     bash /run.sh
-  '
+  ' 2>&1 | tee "$BUILD_DIR/run.log"
 
 LOG="$BUILD_DIR/boot.log"
 [ -f "$LOG" ] || { echo "spike: no boot log produced"; exit 1; }

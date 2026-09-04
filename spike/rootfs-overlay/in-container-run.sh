@@ -72,17 +72,27 @@ ln -s hello.txt "$LOWER/fixtures/link-to-hello"
 # than the guest. This deliberately checks *capability*, not the specific
 # fixture values -- asserting the exact uid here would pre-empt the guest-side
 # test and mask whether that test actually works.
-FIX_OWNER=$(stat -c '%u:%g' "$LOWER/fixtures/owned.txt")
-FIX_XATTR_COUNT=$(getfattr -d -m 'user\.' "$LOWER/fixtures/" -R 2>/dev/null | grep -c '^user\.' || true)
-FIX_NLINK=$(stat -c '%h' "$LOWER/fixtures/link-a.txt")
-echo "=== fixture self-check (host capability, not fixture values) ==="
-echo "owned.txt owner: $FIX_OWNER (want any non-root)"
-echo "user.* xattrs present under fixtures/: $FIX_XATTR_COUNT (want >= 1)"
-echo "link-a.txt nlink: $FIX_NLINK (want 2)"
-[ "$FIX_OWNER" != "0:0" ] || { echo "FIXTURE SELF-CHECK FAILED: chown did not take on the host fs"; exit 1; }
-[ "$FIX_XATTR_COUNT" -ge 1 ] || { echo "FIXTURE SELF-CHECK FAILED: user.* xattrs not supported on the host fs"; exit 1; }
-[ "$FIX_NLINK" = "2" ] || { echo "FIXTURE SELF-CHECK FAILED: hardlink not preserved on the host fs"; exit 1; }
-echo "fixture self-check OK"
+# Probed on a scratch file this check creates itself, never on the fixtures:
+# asserting a fixture's value here would pre-empt the guest-side test and hide
+# whether that test actually works.
+PROBE="$WORK/.selfcheck"
+rm -f "$PROBE"; echo probe > "$PROBE"
+chown 4242:4242 "$PROBE"
+setfattr -n user.probe -v probevalue "$PROBE" 2>/dev/null || true
+ln -f "$PROBE" "$PROBE.link" 2>/dev/null || true
+
+PROBE_OWNER=$(stat -c '%u:%g' "$PROBE")
+PROBE_XATTR=$(getfattr -n user.probe --only-values "$PROBE" 2>/dev/null || echo MISSING)
+PROBE_NLINK=$(stat -c '%h' "$PROBE")
+echo "=== self-check: can this filesystem carry the metadata at all? ==="
+echo "scratch owner: $PROBE_OWNER (want 4242:4242)"
+echo "scratch user.probe: $PROBE_XATTR (want probevalue)"
+echo "scratch nlink: $PROBE_NLINK (want 2)"
+[ "$PROBE_OWNER" = "4242:4242" ] || { echo "SELF-CHECK FAILED: chown does not take on this fs"; exit 1; }
+[ "$PROBE_XATTR" = "probevalue" ] || { echo "SELF-CHECK FAILED: user.* xattrs unsupported on this fs"; exit 1; }
+[ "$PROBE_NLINK" = "2" ] || { echo "SELF-CHECK FAILED: hardlinks not preserved on this fs"; exit 1; }
+rm -f "$PROBE" "$PROBE.link"
+echo "self-check OK"
 echo
 
 # --------------------------------------------------------------------------
