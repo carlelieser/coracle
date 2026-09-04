@@ -126,3 +126,27 @@ fn no_opcode_from_another_slice_leaks_out_of_the_integer_groups() {
         });
     }
 }
+
+#[test]
+fn the_encodings_a_static_busybox_emits_are_claimed_or_deliberately_not() {
+    // Disassembling the M1 gate's own static busybox turns up exactly five
+    // distinct words in the owned groups that this decoder does not claim.
+    // All five are correct refusals, and they are pinned here so that a later
+    // change which starts claiming one has to say why.
+    //
+    // GMI, IRG, DC GVA and DC GZVA are MTE, which docs/machine-spec.md §2
+    // does not advertise; busybox reaches them only behind a runtime
+    // ID_AA64PFR1_EL1.MTE check that reads as absent here. DC ZVA is a
+    // cache-maintenance SYS instruction, which lands with the MMU in M2.
+    let refused = [
+        (0x9adf_1401u32, "gmi"),
+        (0x9ac1_1000, "irg"),
+        (0xd50b_7423, "dc zva"),
+        (0xd50b_7462, "dc gva"),
+        (0xd50b_7482, "dc gzva"),
+    ];
+
+    for (encoding, name) in refused {
+        assert!(decode(encoding).op.is_unallocated(), "{name}");
+    }
+}
