@@ -4,20 +4,20 @@ The correctness oracle for the emulator. QEMU runs a program and emits a
 compact execution trace; the emulator emits the same format; a differ aligns
 the two and reports the first divergence.
 
-Satisfies the `docs/plan.md` M0 gate item: *"Differential harness runs a
-10-instruction ELF and reports identical state."*
+Satisfies the `docs/plan.md` M0 gate item: _"Differential harness runs a
+10-instruction ELF and reports identical state."_
 
 ## Layout
 
-| Path | What it is |
-|------|------------|
-| `TRACE_FORMAT.md` | **The trace format.** Normative; other agents implement against this. |
-| `EMULATOR_INTERFACE.md` | The hook the emulator must provide. |
-| `qemu-plugin/` | The QEMU TCG plugin that emits traces. |
-| `differ/` | Trace reader, comparator, reporter, and the perturbation tool. |
-| `corpus/` | Test programs (AArch64 assembly). |
-| `qemu_cpu.sh` | **Single source of truth** for the QEMU pin and CPU feature mask. |
-| `run_tests.sh` | The gate. Run this. |
+| Path                    | What it is                                                            |
+| ----------------------- | --------------------------------------------------------------------- |
+| `TRACE_FORMAT.md`       | **The trace format.** Normative; other agents implement against this. |
+| `EMULATOR_INTERFACE.md` | The hook the emulator must provide.                                   |
+| `qemu-plugin/`          | The QEMU TCG plugin that emits traces.                                |
+| `differ/`               | Trace reader, comparator, reporter, and the perturbation tool.        |
+| `corpus/`               | Test programs (AArch64 assembly).                                     |
+| `qemu_cpu.sh`           | **Single source of truth** for the QEMU pin and CPU feature mask.     |
+| `run_tests.sh`          | The gate. Run this.                                                   |
 
 ## Prerequisites
 
@@ -93,12 +93,12 @@ exception entry**, so the M2 gate is unaffected by this choice.
 Measured on an M-series Mac, 5 M instructions of a branch-dense loop
 (`corpus/bench_loop.s` — the pessimistic case, since cost is per block):
 
-| scope | reads/block | throughput | 50 M (M2) | 200 M (M5) |
-|-------|-------------|------------|-----------|------------|
-| none (baseline) | 0 | 15.0 M/s | 3 s | 13 s |
-| `core` | ~34 | 3.5 M/s | 14 s | 57 s |
-| `fp` | ~68 | 2.0 M/s | 25 s | 100 s |
-| `all` | ~140 | 1.0 M/s | 50 s | 200 s |
+| scope           | reads/block | throughput | 50 M (M2) | 200 M (M5) |
+| --------------- | ----------- | ---------- | --------- | ---------- |
+| none (baseline) | 0           | 15.0 M/s   | 3 s       | 13 s       |
+| `core`          | ~34         | 3.5 M/s    | 14 s      | 57 s       |
+| `fp`            | ~68         | 2.0 M/s    | 25 s      | 100 s      |
+| `all`           | ~140        | 1.0 M/s    | 50 s      | 200 s      |
 
 Trace size is ~18.7 bytes/instruction in all scopes for this workload, so M5 is
 ~3.7 GB. Real boot code has larger basic blocks than this benchmark, so both
@@ -116,7 +116,7 @@ feature the emulator will not implement.
 
 This is contained rather than ignored:
 
-- `verify_feature_mask.sh` asserts crypto is the *only* excluded feature QEMU
+- `verify_feature_mask.sh` asserts crypto is the _only_ excluded feature QEMU
   still advertises, so the gap cannot silently widen.
 - The M1 fuzz corpus draws from the plan's mask, so crypto encodings are out of
   the corpus by construction.

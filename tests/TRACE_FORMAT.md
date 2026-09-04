@@ -12,11 +12,11 @@ self-describing in length, so a reader can skip a record type it does not know.
 
 The format is driven by three numbers from `docs/plan.md`:
 
-| Gate | Volume |
-|------|--------|
-| M0 | 10 instructions |
-| M2 | 50 M instructions of boot, compared at every exception entry |
-| M5 | 200 M instructions, lockstep |
+| Gate | Volume                                                       |
+| ---- | ------------------------------------------------------------ |
+| M0   | 10 instructions                                              |
+| M2   | 50 M instructions of boot, compared at every exception entry |
+| M5   | 200 M instructions, lockstep                                 |
 
 At 200 M instructions a naive "full state per block" trace (~1 KB × 50 M blocks)
 is ~50 GB. That is not workable. Two decisions bring it down:
@@ -51,7 +51,7 @@ struct RecordHeader {
 };
 ```
 
-`length` being present on *every* record is deliberate: a consumer that does not
+`length` being present on _every_ record is deliberate: a consumer that does not
 understand a record type can still advance. This is the forward-compatibility
 hook for M1/M2/M5 additions (memory records, TLB records) without a format
 rewrite.
@@ -77,12 +77,12 @@ implement" failure mode.
 
 ### StreamFlags
 
-| Bit | Name | Meaning |
-|-----|------|---------|
-| 0 | `PRECISE_FP` | Producer ran softfloat everywhere (plan §2 "precise mode") |
-| 1 | `HAS_VREGS` | Stream includes V-register state |
-| 2 | `HAS_SYSREGS` | Stream includes EL1 system registers |
-| 3 | `BLOCK_DELTAS` | Block records are deltas (always set in v1) |
+| Bit | Name           | Meaning                                                    |
+| --- | -------------- | ---------------------------------------------------------- |
+| 0   | `PRECISE_FP`   | Producer ran softfloat everywhere (plan §2 "precise mode") |
+| 1   | `HAS_VREGS`    | Stream includes V-register state                           |
+| 2   | `HAS_SYSREGS`  | Stream includes EL1 system registers                       |
+| 3   | `BLOCK_DELTAS` | Block records are deltas (always set in v1)                |
 
 `HAS_VREGS` and `HAS_SYSREGS` describe the **block** records only. Exception
 records always carry the full state arrays regardless of these flags; the flags
@@ -178,16 +178,16 @@ struct EndRecord {
 
 Stable numeric ids, **never renumbered**. This is a wire contract.
 
-| Range | Meaning |
-|-------|---------|
-| 0–30 | `x0`–`x30` |
-| 31 | `sp` |
-| 32 | `pc` |
-| 33 | `pstate` (normalised, §6) |
-| 34 | `fpcr` |
-| 35 | `fpsr` |
+| Range  | Meaning                                                 |
+| ------ | ------------------------------------------------------- |
+| 0–30   | `x0`–`x30`                                              |
+| 31     | `sp`                                                    |
+| 32     | `pc`                                                    |
+| 33     | `pstate` (normalised, §6)                               |
+| 34     | `fpcr`                                                  |
+| 35     | `fpsr`                                                  |
 | 64–127 | V registers, `64 + 2*n` = `vn` low 64 bits, `+1` = high |
-| 256+ | system registers, §5.3 |
+| 256+   | system registers, §5.3                                  |
 
 ### 5.3 System registers (M2+)
 
@@ -228,14 +228,14 @@ normalises before writing:
 ## 7. FP comparison policy
 
 Per `docs/plan.md` §2 and the M1 gate, FP is **not** always compared bitwise.
-The policy is a property of the *comparison*, not of the trace, so both
+The policy is a property of the _comparison_, not of the trace, so both
 producers always write full bit patterns and the differ decides.
 
-| Policy | Rule |
-|--------|------|
-| `bitwise` | Exact equality. Used when both streams set `PRECISE_FP`. |
-| `nan-insensitive` | Two values are equal if bitwise equal, **or** if both are NaN of the same signalling class. Used for the native-wasm FP backend leg. |
-| `ignore-fpsr` | As above, and FPSR cumulative bits (IDC/IXC/UFC/OFC/DZC/IOC) are not compared. The plan states FPSR flags are only maintained on the softfloat path. |
+| Policy            | Rule                                                                                                                                                 |
+| ----------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bitwise`         | Exact equality. Used when both streams set `PRECISE_FP`.                                                                                             |
+| `nan-insensitive` | Two values are equal if bitwise equal, **or** if both are NaN of the same signalling class. Used for the native-wasm FP backend leg.                 |
+| `ignore-fpsr`     | As above, and FPSR cumulative bits (IDC/IXC/UFC/OFC/DZC/IOC) are not compared. The plan states FPSR flags are only maintained on the softfloat path. |
 
 The differ selects the policy from a CLI flag; `PRECISE_FP` in both headers
 makes `bitwise` the default. Choosing `nan-insensitive` when both streams are

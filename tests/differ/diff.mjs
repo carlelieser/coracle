@@ -41,20 +41,22 @@ function parseArgs(argv) {
 
 /** Both streams precise => bitwise is the strict default; otherwise relax. */
 function choosePolicy(requested, leftTrace, rightTrace) {
-  const isPrecise = (trace) =>
-    (trace.header.flags & StreamFlags.PRECISE_FP) !== 0n;
+  const isPrecise = (trace) => (trace.header.flags & StreamFlags.PRECISE_FP) !== 0n;
   const bothPrecise = isPrecise(leftTrace) && isPrecise(rightTrace);
 
   if (requested === null) {
     return { policy: bothPrecise ? "bitwise" : "nan-insensitive", warning: null };
   }
   if (!POLICIES.includes(requested)) {
-    throw new Error(`unknown FP policy '${requested}'; expected one of ${POLICIES.join(", ")}`);
+    throw new Error(
+      `unknown FP policy '${requested}'; expected one of ${POLICIES.join(", ")}`,
+    );
   }
-  const warning = bothPrecise && requested !== "bitwise"
-    ? `warning: both traces are PRECISE_FP but policy '${requested}' was requested;` +
-      " this weakens a gate that could be strict"
-    : null;
+  const warning =
+    bothPrecise && requested !== "bitwise"
+      ? `warning: both traces are PRECISE_FP but policy '${requested}' was requested;` +
+        " this weakens a gate that could be strict"
+      : null;
   return { policy: requested, warning };
 }
 
@@ -64,9 +66,9 @@ function assertComparable(leftTrace, rightTrace, allowMismatch) {
   if (left === right || allowMismatch) return;
   throw new Error(
     `feature-mask mismatch: ${leftTrace.path} advertises ${hex(left)} but ` +
-    `${rightTrace.path} advertises ${hex(right)}.\n` +
-    "  Comparing traces from differently-configured CPUs produces noise, not signal.\n" +
-    "  Fix the -cpu flags, or pass --allow-feature-mismatch if this is deliberate.",
+      `${rightTrace.path} advertises ${hex(right)}.\n` +
+      "  Comparing traces from differently-configured CPUs produces noise, not signal.\n" +
+      "  Fix the -cpu flags, or pass --allow-feature-mismatch if this is deliberate.",
   );
 }
 
@@ -76,7 +78,9 @@ function main() {
     parsed = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`error: ${error.message}`);
-    console.error("usage: diff.mjs <expected.cdt> <actual.cdt> [--fp-policy=bitwise|nan-insensitive|ignore-fpsr] [--history=N] [--allow-feature-mismatch]");
+    console.error(
+      "usage: diff.mjs <expected.cdt> <actual.cdt> [--fp-policy=bitwise|nan-insensitive|ignore-fpsr] [--history=N] [--allow-feature-mismatch]",
+    );
     return EXIT_ERROR;
   }
 
@@ -86,7 +90,11 @@ function main() {
     leftTrace = loadTrace(leftPath);
     rightTrace = loadTrace(rightPath);
     assertComparable(leftTrace, rightTrace, parsed.options.allowFeatureMismatch);
-    ({ policy, warning } = choosePolicy(parsed.options.fpPolicy, leftTrace, rightTrace));
+    ({ policy, warning } = choosePolicy(
+      parsed.options.fpPolicy,
+      leftTrace,
+      rightTrace,
+    ));
   } catch (error) {
     console.error(`error: ${error.message}`);
     return EXIT_ERROR;

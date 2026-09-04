@@ -1,6 +1,6 @@
 # What the emulator must implement to be differentially testable
 
-This is the contract between the emulator and the harness. It is a *hook*
+This is the contract between the emulator and the harness. It is a _hook_
 specification — the harness does not build any of it, and nothing here requires
 changes to the emulator's own architecture.
 
@@ -30,7 +30,7 @@ Gate it behind a Cargo feature (e.g. `trace`) so release builds carry no cost.
 
 1. `REC_MARKER` (kind 1) once, before the first block.
 2. `on_block` for every retired block, in execution order.
-3. `on_exception` *between* the block that faulted and the block at the vector.
+3. `on_exception` _between_ the block that faulted and the block at the vector.
 4. `finish` exactly once.
 
 ## 2. Semantics that must match, exactly
@@ -38,17 +38,17 @@ Gate it behind a Cargo feature (e.g. `trace`) so release builds carry no cost.
 These are the places where a plausible implementation choice would produce a
 false divergence. The QEMU plugin already behaves as described.
 
-| Field | Rule |
-|-------|------|
-| `icount` | Instructions retired **before** this block. Starts at 0. A block of `n` instructions advances it by `n`. |
-| `icount` on exception | The value as of the faulting instruction — i.e. the faulting instruction is **not** counted as retired. |
-| `pc` in `REC_BLOCK` | Virtual address of the **first** instruction of the block. |
-| `n_insns` | Instructions in the block as translated, including the terminating branch. |
-| Block boundaries | Must match QEMU's TCG blocks. See §4 — this is the one genuinely hard requirement. |
-| `pstate` | Normalised per TRACE_FORMAT §6: NZCV at 31..28, DAIF at 9..6, EL at 3..2, SPSel at 0, **all other bits zero**. |
-| `xzr` | Never emitted. Register id 31 is `sp`. |
-| Deltas | Emit a register **only** when its value changed since the previous record. Emitting unchanged registers is harmless for correctness but inflates the trace. |
-| After an exception | Treat the next block as if no shadow state is known and emit a full register set. The QEMU plugin does this so the two streams cannot silently drift. |
+| Field                 | Rule                                                                                                                                                        |
+| --------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `icount`              | Instructions retired **before** this block. Starts at 0. A block of `n` instructions advances it by `n`.                                                    |
+| `icount` on exception | The value as of the faulting instruction — i.e. the faulting instruction is **not** counted as retired.                                                     |
+| `pc` in `REC_BLOCK`   | Virtual address of the **first** instruction of the block.                                                                                                  |
+| `n_insns`             | Instructions in the block as translated, including the terminating branch.                                                                                  |
+| Block boundaries      | Must match QEMU's TCG blocks. See §4 — this is the one genuinely hard requirement.                                                                          |
+| `pstate`              | Normalised per TRACE_FORMAT §6: NZCV at 31..28, DAIF at 9..6, EL at 3..2, SPSel at 0, **all other bits zero**.                                              |
+| `xzr`                 | Never emitted. Register id 31 is `sp`.                                                                                                                      |
+| Deltas                | Emit a register **only** when its value changed since the previous record. Emitting unchanged registers is harmless for correctness but inflates the trace. |
+| After an exception    | Treat the next block as if no shadow state is known and emit a full register set. The QEMU plugin does this so the two streams cannot silently drift.       |
 
 ## 3. Feature-mask identity
 

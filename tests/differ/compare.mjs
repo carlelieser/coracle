@@ -6,7 +6,14 @@
  * divergence shows up as a PC or n_insns mismatch on the same step, which is
  * reported before any register comparison is attempted.
  */
-import { NUM_SYSREG, NUM_VREG, RecordType, RegId, SYSREG_NAMES, isFpReg } from "./format.mjs";
+import {
+  NUM_SYSREG,
+  NUM_VREG,
+  RecordType,
+  RegId,
+  SYSREG_NAMES,
+  isFpReg,
+} from "./format.mjs";
 
 const KIND = {
   PC: "pc",
@@ -56,8 +63,8 @@ class RegisterState {
 
 function significantRecords(trace) {
   return trace.records.filter(
-    (record) => record.type === RecordType.BLOCK ||
-                record.type === RecordType.EXCEPTION,
+    (record) =>
+      record.type === RecordType.BLOCK || record.type === RecordType.EXCEPTION,
   );
 }
 
@@ -90,20 +97,37 @@ function compareExceptionFields(left, right, context) {
 function compareStep(leftRecord, rightRecord, index) {
   const context = { index, icount: leftRecord.icount };
   if (leftRecord.type !== rightRecord.type) {
-    return { kind: KIND.RECORD_TYPE, expected: BigInt(leftRecord.type),
-             actual: BigInt(rightRecord.type), ...context };
+    return {
+      kind: KIND.RECORD_TYPE,
+      expected: BigInt(leftRecord.type),
+      actual: BigInt(rightRecord.type),
+      ...context,
+    };
   }
   if (leftRecord.icount !== rightRecord.icount) {
-    return { kind: KIND.ICOUNT, expected: leftRecord.icount,
-             actual: rightRecord.icount, ...context };
+    return {
+      kind: KIND.ICOUNT,
+      expected: leftRecord.icount,
+      actual: rightRecord.icount,
+      ...context,
+    };
   }
   if (leftRecord.type === RecordType.BLOCK) {
     if (leftRecord.pc !== rightRecord.pc) {
-      return { kind: KIND.PC, expected: leftRecord.pc, actual: rightRecord.pc, ...context };
+      return {
+        kind: KIND.PC,
+        expected: leftRecord.pc,
+        actual: rightRecord.pc,
+        ...context,
+      };
     }
     if (leftRecord.nInsns !== rightRecord.nInsns) {
-      return { kind: KIND.INSN_COUNT, expected: BigInt(leftRecord.nInsns),
-               actual: BigInt(rightRecord.nInsns), ...context };
+      return {
+        kind: KIND.INSN_COUNT,
+        expected: BigInt(leftRecord.nInsns),
+        actual: BigInt(rightRecord.nInsns),
+        ...context,
+      };
     }
     return null;
   }
@@ -138,15 +162,21 @@ export function compareTraces(leftTrace, rightTrace, options = {}) {
       rightState.applyException(rightRecord);
     }
 
-    const context = { index, icount: leftRecord.icount,
-                      pc: leftRecord.type === RecordType.BLOCK
-                          ? leftRecord.pc : leftRecord.toPc };
+    const context = {
+      index,
+      icount: leftRecord.icount,
+      pc: leftRecord.type === RecordType.BLOCK ? leftRecord.pc : leftRecord.toPc,
+    };
     const mismatch = compareRegisters(leftState, rightState, areEqual, context);
     if (mismatch) return { ok: false, divergence: mismatch, history };
 
-    history.push({ index, icount: leftRecord.icount, type: leftRecord.type,
-                   pc: context.pc,
-                   nInsns: leftRecord.nInsns ?? 0 });
+    history.push({
+      index,
+      icount: leftRecord.icount,
+      type: leftRecord.type,
+      pc: context.pc,
+      nInsns: leftRecord.nInsns ?? 0,
+    });
     if (history.length > historyDepth) history.shift();
   }
 
@@ -154,8 +184,12 @@ export function compareTraces(leftTrace, rightTrace, options = {}) {
     return {
       ok: false,
       history,
-      divergence: { kind: KIND.LENGTH, index: steps,
-                    expected: BigInt(left.length), actual: BigInt(right.length) },
+      divergence: {
+        kind: KIND.LENGTH,
+        index: steps,
+        expected: BigInt(left.length),
+        actual: BigInt(right.length),
+      },
     };
   }
   return { ok: true, steps, history };

@@ -12,8 +12,14 @@
 import { readFileSync, writeFileSync } from "node:fs";
 
 import {
-  FILE_HEADER_BYTES, NUM_SYSREG, NUM_VREG, RECORD_HEADER_BYTES,
-  RecordType, RegId, SYSREG_NAMES, hex,
+  FILE_HEADER_BYTES,
+  NUM_SYSREG,
+  NUM_VREG,
+  RECORD_HEADER_BYTES,
+  RecordType,
+  RegId,
+  SYSREG_NAMES,
+  hex,
 } from "./format.mjs";
 
 const BLOCK_PREFIX_BYTES = 32;
@@ -22,8 +28,13 @@ const REG_DELTA_BYTES = 16;
 function parseRegName(name) {
   const gpr = /^x(\d+)$/.exec(name);
   if (gpr) return Number(gpr[1]);
-  const named = { sp: RegId.SP, pc: RegId.PC, pstate: RegId.PSTATE,
-                  fpcr: RegId.FPCR, fpsr: RegId.FPSR };
+  const named = {
+    sp: RegId.SP,
+    pc: RegId.PC,
+    pstate: RegId.PSTATE,
+    fpcr: RegId.FPCR,
+    fpsr: RegId.FPSR,
+  };
   if (name in named) return named[name];
   const vector = /^v(\d+)\.(lo|hi)$/.exec(name);
   if (vector) {
@@ -77,16 +88,17 @@ function perturb(bytes, regId, targetStep, xorMask) {
     }
     const isSignificant = type === RecordType.BLOCK || type === RecordType.EXCEPTION;
     if (isSignificant && step === targetStep) {
-      const valueAt = type === RecordType.BLOCK
-        ? blockValueOffset(view, offset, flags, regId)
-        : (() => {
-            const rel = exceptionValueOffset(regId);
-            return rel === null ? null : offset + rel;
-          })();
+      const valueAt =
+        type === RecordType.BLOCK
+          ? blockValueOffset(view, offset, flags, regId)
+          : (() => {
+              const rel = exceptionValueOffset(regId);
+              return rel === null ? null : offset + rel;
+            })();
       if (valueAt === null) {
         throw new Error(
           `step ${targetStep} does not carry register id ${regId}; ` +
-          "pick a step whose delta set includes it (see `cdt.mjs dump`)",
+            "pick a step whose delta set includes it (see `cdt.mjs dump`)",
         );
       }
       const before = view.getBigUint64(valueAt, true);
@@ -122,7 +134,9 @@ function main() {
     parsed = parseArgs(process.argv.slice(2));
   } catch (error) {
     console.error(`error: ${error.message}`);
-    console.error("usage: perturb.mjs <in.cdt> <out.cdt> --reg=x2 --at-step=3 [--xor=0x1]");
+    console.error(
+      "usage: perturb.mjs <in.cdt> <out.cdt> --reg=x2 --at-step=3 [--xor=0x1]",
+    );
     return 2;
   }
   const [inputPath, outputPath] = parsed.paths;
@@ -131,8 +145,10 @@ function main() {
     const bytes = readFileSync(inputPath);
     const result = perturb(bytes, regId, parsed.options.step, parsed.options.xor);
     writeFileSync(outputPath, bytes);
-    console.log(`perturbed ${parsed.options.reg} at step ${result.step}: ` +
-                `${hex(result.before)} -> ${hex(result.after)}`);
+    console.log(
+      `perturbed ${parsed.options.reg} at step ${result.step}: ` +
+        `${hex(result.before)} -> ${hex(result.after)}`,
+    );
     console.log(`wrote ${outputPath}`);
     return 0;
   } catch (error) {

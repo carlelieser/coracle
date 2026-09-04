@@ -40,11 +40,26 @@ export const NUM_VREG = 32;
 export const NUM_SYSREG = 20;
 
 export const SYSREG_NAMES = [
-  "SCTLR_EL1", "TTBR0_EL1", "TTBR1_EL1", "TCR_EL1",
-  "MAIR_EL1", "VBAR_EL1", "ESR_EL1", "FAR_EL1",
-  "ELR_EL1", "SPSR_EL1", "SP_EL0", "SP_EL1",
-  "TPIDR_EL0", "TPIDR_EL1", "TPIDRRO_EL0", "CONTEXTIDR_EL1",
-  "CPACR_EL1", "AMAIR_EL1", "PAR_EL1", "CNTKCTL_EL1",
+  "SCTLR_EL1",
+  "TTBR0_EL1",
+  "TTBR1_EL1",
+  "TCR_EL1",
+  "MAIR_EL1",
+  "VBAR_EL1",
+  "ESR_EL1",
+  "FAR_EL1",
+  "ELR_EL1",
+  "SPSR_EL1",
+  "SP_EL0",
+  "SP_EL1",
+  "TPIDR_EL0",
+  "TPIDR_EL1",
+  "TPIDRRO_EL0",
+  "CONTEXTIDR_EL1",
+  "CPACR_EL1",
+  "AMAIR_EL1",
+  "PAR_EL1",
+  "CNTKCTL_EL1",
 ];
 
 export const DISCON_NAMES = { 1: "interrupt", 2: "exception", 4: "hostcall" };

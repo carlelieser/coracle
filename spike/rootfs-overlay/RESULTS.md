@@ -20,13 +20,13 @@ that is M3's gate, and `9p-checklist.md` is the list it must satisfy.
 
 ## Versions pinned
 
-| Component | Version | Note |
-|---|---|---|
-| Kernel | **6.12.107** | mainline, `cdn.kernel.org`, sha256 `a5f8c5be…07a`, built from source |
-| QEMU | **10.0.11** | Debian trixie `qemu-system-arm`, running **inside** a `linux/arm64` container |
-| busybox | **1.37.0** | Alpine 3.21 `busybox-static` prebuilt |
-| Machine | `virt`, `-cpu cortex-a72`, 1 vCPU, 1 GB | virtio-**mmio** transport, matching the plan's machine model |
-| Host | macOS arm64 (Darwin 25.5.0) | guests run natively, no cross-arch emulation |
+| Component | Version                                 | Note                                                                          |
+| --------- | --------------------------------------- | ----------------------------------------------------------------------------- |
+| Kernel    | **6.12.107**                            | mainline, `cdn.kernel.org`, sha256 `a5f8c5be…07a`, built from source          |
+| QEMU      | **10.0.11**                             | Debian trixie `qemu-system-arm`, running **inside** a `linux/arm64` container |
+| busybox   | **1.37.0**                              | Alpine 3.21 `busybox-static` prebuilt                                         |
+| Machine   | `virt`, `-cpu cortex-a72`, 1 vCPU, 1 GB | virtio-**mmio** transport, matching the plan's machine model                  |
+| Host      | macOS arm64 (Darwin 25.5.0)             | guests run natively, no cross-arch emulation                                  |
 
 Exact values live in `versions.env`; the run fails on a checksum mismatch.
 
@@ -63,24 +63,24 @@ INFO   root mount: overlay overlay rw,relatime,lowerdir=/mnt/lower,
 
 `SPIKE_SUMMARY pass=15 fail=0 skip=0 known=1`
 
-| Behavior | Verdict | Evidence |
-|---|---|---|
-| Boot to overlay root | PASS | `/` reports `fstype=overlay`; the test aborts if it does not |
-| readdir d_type | PASS | `9p lower /fixtures: dirs=3 files=7 symlinks=1` |
-| Copy-up | PASS | see below |
-| Whiteout | PASS | see below |
-| Opaque directory | PASS | `merged subdir after recreate: 'fresh.txt '` — the two lower entries stayed hidden |
-| Rename (upper) | PASS | `renamed content is 'rename-payload' as expected` |
-| Rename across overlay boundary | PASS | see below |
-| Rename directory across boundary | PASS | `redirect xattr present on moved dir: 1`; contents intact |
-| xattr | PASS | see below |
-| uid/gid | PASS | see below |
-| setuid bit | PASS | `setuid file mode: before=4755 after copy-up=4755` |
-| Hardlink (upper) | PASS | `inodes a=32797 b=32797 nlink=2`; write through a visible via b |
-| **Hardlink (lower, across copy-up)** | **KNOWN LIMITATION** | see below |
-| Symlink through 9p lower | PASS | `target='hello.txt'` resolves to the copied-up content |
-| Persistence to ext4 upper | PASS | marker written through overlay found on the ext4 upper |
-| Negative control | PASS | `touch` on the lower: `Read-only file system` |
+| Behavior                             | Verdict              | Evidence                                                                           |
+| ------------------------------------ | -------------------- | ---------------------------------------------------------------------------------- |
+| Boot to overlay root                 | PASS                 | `/` reports `fstype=overlay`; the test aborts if it does not                       |
+| readdir d_type                       | PASS                 | `9p lower /fixtures: dirs=3 files=7 symlinks=1`                                    |
+| Copy-up                              | PASS                 | see below                                                                          |
+| Whiteout                             | PASS                 | see below                                                                          |
+| Opaque directory                     | PASS                 | `merged subdir after recreate: 'fresh.txt '` — the two lower entries stayed hidden |
+| Rename (upper)                       | PASS                 | `renamed content is 'rename-payload' as expected`                                  |
+| Rename across overlay boundary       | PASS                 | see below                                                                          |
+| Rename directory across boundary     | PASS                 | `redirect xattr present on moved dir: 1`; contents intact                          |
+| xattr                                | PASS                 | see below                                                                          |
+| uid/gid                              | PASS                 | see below                                                                          |
+| setuid bit                           | PASS                 | `setuid file mode: before=4755 after copy-up=4755`                                 |
+| Hardlink (upper)                     | PASS                 | `inodes a=32797 b=32797 nlink=2`; write through a visible via b                    |
+| **Hardlink (lower, across copy-up)** | **KNOWN LIMITATION** | see below                                                                          |
+| Symlink through 9p lower             | PASS                 | `target='hello.txt'` resolves to the copied-up content                             |
+| Persistence to ext4 upper            | PASS                 | marker written through overlay found on the ext4 upper                             |
+| Negative control                     | PASS                 | `touch` on the lower: `Read-only file system`                                      |
 
 ### Copy-up
 
@@ -135,7 +135,7 @@ INFO   after copy-up, ownership through overlay: 1234:5678 (upper file: 1234:567
 INFO   setuid file mode: before=4755 after copy-up=4755 (want 4755 both)
 ```
 
-Ownership survives 9p transport *and* copy-up, and the setuid bit is not
+Ownership survives 9p transport _and_ copy-up, and the setuid bit is not
 dropped. This is the case most likely to break silently, so it is asserted on
 the merged view and on the upper file independently, and the setuid check
 asserts the absolute value at both points rather than only that it did not
@@ -165,7 +165,7 @@ Overlayfs needs `index=on` to rejoin a copied-up hardlink, and `index` requires
 the lower filesystem to encode file handles. Reading the source:
 `ovl_can_decode_fh()` (`fs/overlayfs/util.c:79`) returns 0 unless the lower
 superblock exposes `s_export_op`, and **`fs/9p/` defines no export operations
-anywhere in the tree**. So this is a property of the kernel's 9p *client*, not
+anywhere in the tree**. So this is a property of the kernel's 9p _client_, not
 of QEMU's server: **our own 9p server cannot fix it either.**
 
 Impact on the plan: a container image whose layers use hardlinks (busybox and
@@ -279,12 +279,12 @@ Three things back the verdict beyond the passing table:
    real bug in this suite.** `verify-harness.sh` breaks the setup in four
    specific ways and requires the matrix to go red each time:
 
-   | Mutation | Detected by |
-   |---|---|
-   | lower xattr set under a different name | `xattr` |
-   | fixture chowned to the wrong uid/gid | `uid-gid` |
-   | 9p lower served read-write | `negative-control` |
-   | setuid bit not set on the fixture | `setuid-mode` |
+   | Mutation                               | Detected by        |
+   | -------------------------------------- | ------------------ |
+   | lower xattr set under a different name | `xattr`            |
+   | fixture chowned to the wrong uid/gid   | `uid-gid`          |
+   | 9p lower served read-write             | `negative-control` |
+   | setuid bit not set on the fixture      | `setuid-mode`      |
 
    The fourth mutation initially went **undetected**. The mode check was
    folded into the uid/gid case and only asserted `before == after` across

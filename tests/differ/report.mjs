@@ -36,9 +36,11 @@ function formatHistory(history, leftName) {
   if (history.length === 0) return ["  (no preceding blocks)"];
   return history.map((entry) => {
     const kind = entry.type === RecordType.EXCEPTION ? "EXCEPT" : "BLOCK ";
-    return `  ${kind} step=${String(entry.index).padStart(6)}` +
-           ` icount=${String(entry.icount).padStart(10)}` +
-           ` pc=${hex(entry.pc)} n=${entry.nInsns}`;
+    return (
+      `  ${kind} step=${String(entry.index).padStart(6)}` +
+      ` icount=${String(entry.icount).padStart(10)}` +
+      ` pc=${hex(entry.pc)} n=${entry.nInsns}`
+    );
   });
 }
 
@@ -61,15 +63,23 @@ export function formatDivergence(result, leftTrace, rightTrace) {
   lines.push("");
 
   const regId = divergence.regId;
-  const label = regId !== undefined ? regName(regId)
-              : divergence.field ?? divergence.kind;
+  const label =
+    regId !== undefined ? regName(regId) : (divergence.field ?? divergence.kind);
   lines.push(`  ${label}`);
-  lines.push(`    expected (${leftName})  ${
-    regId !== undefined ? describeValue(regId, divergence.expected)
-                        : hex(divergence.expected)}`);
-  lines.push(`    actual   (${rightName})  ${
-    regId !== undefined ? describeValue(regId, divergence.actual)
-                        : hex(divergence.actual)}`);
+  lines.push(
+    `    expected (${leftName})  ${
+      regId !== undefined
+        ? describeValue(regId, divergence.expected)
+        : hex(divergence.expected)
+    }`,
+  );
+  lines.push(
+    `    actual   (${rightName})  ${
+      regId !== undefined
+        ? describeValue(regId, divergence.actual)
+        : hex(divergence.actual)
+    }`,
+  );
   if (regId !== undefined) {
     const delta = divergence.expected ^ divergence.actual;
     lines.push(`    xor                       ${hex(delta)}`);

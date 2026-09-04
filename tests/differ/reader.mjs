@@ -4,8 +4,14 @@
 import { readFileSync } from "node:fs";
 
 import {
-  FILE_HEADER_BYTES, FORMAT_VERSION, MAGIC, NUM_SYSREG, NUM_VREG,
-  RECORD_HEADER_BYTES, REG_DELTA_BYTES, RecordType,
+  FILE_HEADER_BYTES,
+  FORMAT_VERSION,
+  MAGIC,
+  NUM_SYSREG,
+  NUM_VREG,
+  RECORD_HEADER_BYTES,
+  REG_DELTA_BYTES,
+  RecordType,
 } from "./format.mjs";
 
 export class TraceFormatError extends Error {
@@ -22,7 +28,10 @@ function readHeader(view, path) {
   }
   const formatVersion = view.getUint32(8, true);
   if (formatVersion !== FORMAT_VERSION) {
-    throw new TraceFormatError(path, `format version ${formatVersion}, expected ${FORMAT_VERSION}`);
+    throw new TraceFormatError(
+      path,
+      `format version ${formatVersion}, expected ${FORMAT_VERSION}`,
+    );
   }
   const nameBytes = Buffer.from(view.buffer, view.byteOffset + 32, 32);
   const end = nameBytes.indexOf(0);
@@ -72,15 +81,33 @@ function readException(view, offset) {
   const toPc = view.getBigUint64(cursor + 16, true);
   const disconType = view.getUint32(cursor + 24, true);
   cursor += 32;
-  const x = readWords(view, cursor, 32); cursor += 32 * 8;
-  const pc = view.getBigUint64(cursor, true); cursor += 8;
-  const pstate = view.getBigUint64(cursor, true); cursor += 8;
-  const sysreg = readWords(view, cursor, NUM_SYSREG); cursor += NUM_SYSREG * 8;
-  const fpcr = view.getBigUint64(cursor, true); cursor += 8;
-  const fpsr = view.getBigUint64(cursor, true); cursor += 8;
+  const x = readWords(view, cursor, 32);
+  cursor += 32 * 8;
+  const pc = view.getBigUint64(cursor, true);
+  cursor += 8;
+  const pstate = view.getBigUint64(cursor, true);
+  cursor += 8;
+  const sysreg = readWords(view, cursor, NUM_SYSREG);
+  cursor += NUM_SYSREG * 8;
+  const fpcr = view.getBigUint64(cursor, true);
+  cursor += 8;
+  const fpsr = view.getBigUint64(cursor, true);
+  cursor += 8;
   const v = readWords(view, cursor, NUM_VREG * 2);
-  return { type: RecordType.EXCEPTION, icount, fromPc, toPc, disconType,
-           x, pc, pstate, sysreg, fpcr, fpsr, v };
+  return {
+    type: RecordType.EXCEPTION,
+    icount,
+    fromPc,
+    toPc,
+    disconType,
+    x,
+    pc,
+    pstate,
+    sysreg,
+    fpcr,
+    fpsr,
+    v,
+  };
 }
 
 function readRecord(view, offset, path) {
@@ -96,12 +123,24 @@ function readRecord(view, offset, path) {
     case RecordType.EXCEPTION:
       return { length, record: readException(view, offset) };
     case RecordType.MARKER:
-      return { length, record: { type, icount: view.getBigUint64(offset + 8, true),
-                                 kind: view.getBigUint64(offset + 16, true),
-                                 value: view.getBigUint64(offset + 24, true) } };
+      return {
+        length,
+        record: {
+          type,
+          icount: view.getBigUint64(offset + 8, true),
+          kind: view.getBigUint64(offset + 16, true),
+          value: view.getBigUint64(offset + 24, true),
+        },
+      };
     case RecordType.END:
-      return { length, record: { type, icount: view.getBigUint64(offset + 8, true),
-                                 reason: view.getBigUint64(offset + 16, true) } };
+      return {
+        length,
+        record: {
+          type,
+          icount: view.getBigUint64(offset + 8, true),
+          reason: view.getBigUint64(offset + 16, true),
+        },
+      };
     default:
       // Unknown type: `length` still lets us advance. Forward compatibility.
       return { length, record: { type, unknown: true } };
@@ -111,7 +150,10 @@ function readRecord(view, offset, path) {
 export function loadTrace(path) {
   const bytes = readFileSync(path);
   if (bytes.length < FILE_HEADER_BYTES) {
-    throw new TraceFormatError(path, `file is ${bytes.length} bytes, shorter than a header`);
+    throw new TraceFormatError(
+      path,
+      `file is ${bytes.length} bytes, shorter than a header`,
+    );
   }
   const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
   const header = readHeader(view, path);

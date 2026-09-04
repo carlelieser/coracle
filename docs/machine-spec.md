@@ -12,19 +12,19 @@ lane (see §3). Everything else is decided.
 A clone of QEMU's `virt` machine, narrowed to what a mainline arm64 kernel
 requires to boot unpatched.
 
-| Property | Value |
-|---|---|
-| Architecture | ARMv8.0-A, AArch64 only |
-| Exception levels | EL0, EL1 only |
-| CPUs | 1 (single vCPU; SMP is a v1 non-goal) |
-| Endianness | Little-endian only |
-| Interrupt controller | GICv2 |
-| Timer | ARM generic timer (virtual and physical) |
-| Console | PL011 UART |
-| RTC | PL031 |
-| Device transport | virtio-mmio |
-| Firmware interface | PSCI subset over trapped `SMC` |
-| Boot protocol | Linux arm64 boot protocol; DTB pointer in x0 |
+| Property             | Value                                        |
+| -------------------- | -------------------------------------------- |
+| Architecture         | ARMv8.0-A, AArch64 only                      |
+| Exception levels     | EL0, EL1 only                                |
+| CPUs                 | 1 (single vCPU; SMP is a v1 non-goal)        |
+| Endianness           | Little-endian only                           |
+| Interrupt controller | GICv2                                        |
+| Timer                | ARM generic timer (virtual and physical)     |
+| Console              | PL011 UART                                   |
+| RTC                  | PL031                                        |
+| Device transport     | virtio-mmio                                  |
+| Firmware interface   | PSCI subset over trapped `SMC`               |
+| Boot protocol        | Linux arm64 boot protocol; DTB pointer in x0 |
 
 AArch32 is not implemented at any exception level. EL2 and EL3 do not exist:
 `ID_AA64PFR0_EL1.EL2` and `.EL3` read as unimplemented, and the kernel must
@@ -35,14 +35,14 @@ never observe an EL2-capable machine.
 The emulator advertises ARMv8.0-A baseline and nothing beyond it. These features
 are **not** implemented and must read as absent in their `ID_AA64*` fields:
 
-| Feature | ID register field |
-|---|---|
-| LSE atomics | `ID_AA64ISAR0_EL1.Atomic` |
-| SVE | `ID_AA64PFR0_EL1.SVE` |
-| Pointer authentication | `ID_AA64ISAR1_EL1.{APA,API,GPA,GPI}` |
-| MTE | `ID_AA64PFR1_EL1.MTE` |
+| Feature                | ID register field                               |
+| ---------------------- | ----------------------------------------------- |
+| LSE atomics            | `ID_AA64ISAR0_EL1.Atomic`                       |
+| SVE                    | `ID_AA64PFR0_EL1.SVE`                           |
+| Pointer authentication | `ID_AA64ISAR1_EL1.{APA,API,GPA,GPI}`            |
+| MTE                    | `ID_AA64PFR1_EL1.MTE`                           |
 | Crypto (AES/SHA/PMULL) | `ID_AA64ISAR0_EL1.{AES,SHA1,SHA2,SHA3,SM3,SM4}` |
-| BTI | `ID_AA64PFR1_EL1.BT` |
+| BTI                    | `ID_AA64PFR1_EL1.BT`                            |
 
 An instruction encoding belonging to an unadvertised feature raises the same
 exception the architecture requires of an unimplemented encoding, identically to
@@ -65,17 +65,17 @@ usable as the differential oracle. Verified against the built DTB at
 `kernel/out/coracle-virt.dtb`; `kernel/scripts/dump-reference-dtb.sh`
 regenerates the reference and diffs it.
 
-| Region | Base | Size | SPI | GIC INTID |
-|--------|------|------|-----|-----------|
-| GIC distributor | `0x0800_0000` | 64 KB | — | — |
-| GIC CPU interface | `0x0801_0000` | 64 KB | — | — |
-| PL011 UART (`ttyAMA0`) | `0x0900_0000` | 4 KB | 1 | 33 |
-| PL031 RTC | `0x0901_0000` | 4 KB | 2 | 34 |
-| virtio-mmio slots 0–7 | `0x0a00_0000` | 512 B each | 16–23 | 48–55 |
-| Guest RAM | `0x4000_0000` | 1 GB | — | — |
+| Region                 | Base          | Size       | SPI   | GIC INTID |
+| ---------------------- | ------------- | ---------- | ----- | --------- |
+| GIC distributor        | `0x0800_0000` | 64 KB      | —     | —         |
+| GIC CPU interface      | `0x0801_0000` | 64 KB      | —     | —         |
+| PL011 UART (`ttyAMA0`) | `0x0900_0000` | 4 KB       | 1     | 33        |
+| PL031 RTC              | `0x0901_0000` | 4 KB       | 2     | 34        |
+| virtio-mmio slots 0–7  | `0x0a00_0000` | 512 B each | 16–23 | 48–55     |
+| Guest RAM              | `0x4000_0000` | 1 GB       | —     | —         |
 
-SPI *n* is GIC INTID *n* + 32. virtio-mmio slots are strided by `0x200`, so
-slot *n* is at `0x0a00_0000 + n * 0x200` with SPI *16 + n*. QEMU's `virt`
+SPI _n_ is GIC INTID _n_ + 32. virtio-mmio slots are strided by `0x200`, so
+slot _n_ is at `0x0a00_0000 + n * 0x200` with SPI _16 + n_. QEMU's `virt`
 provides 32 slots; we declare 8 — enough for blk, net, 9p, rng and console with
 headroom, without 32 probe cycles at boot.
 
@@ -91,10 +91,10 @@ Guest RAM is a fixed-offset region inside the wasm module's exported linear
 memory. The module is built with atomics and its memory is shared, so the CPU
 worker and the device threads address the same bytes.
 
-| Property | Value |
-|---|---|
-| Default size | 1 GB |
-| Maximum size | 2 GB |
+| Property     | Value                        |
+| ------------ | ---------------------------- |
+| Default size | 1 GB                         |
+| Maximum size | 2 GB                         |
 | Configurable | Yes, at machine construction |
 
 Full-system mode means the MMU translates guest virtual addresses to physical
@@ -115,12 +115,12 @@ poweroff.
 
 Implemented calls:
 
-| Call | Behavior |
-|---|---|
-| `PSCI_VERSION` | Returns the implemented version |
-| `SYSTEM_OFF` | Clean machine-loop exit; the machine is terminated |
-| `SYSTEM_RESET` | Clean machine-loop exit and restart |
-| `CPU_SUSPEND` | Idles until the next timer interrupt or IRQ (WFI semantics) |
+| Call           | Behavior                                                    |
+| -------------- | ----------------------------------------------------------- |
+| `PSCI_VERSION` | Returns the implemented version                             |
+| `SYSTEM_OFF`   | Clean machine-loop exit; the machine is terminated          |
+| `SYSTEM_RESET` | Clean machine-loop exit and restart                         |
+| `CPU_SUSPEND`  | Idles until the next timer interrupt or IRQ (WFI semantics) |
 
 Any other PSCI function returns `NOT_SUPPORTED`. Because the machine is single
 vCPU, `CPU_ON` and the rest of the multiprocessor calls are deliberately absent.
@@ -133,10 +133,10 @@ the host observes a normal termination, not a trap or a hang — `poweroff` and
 
 Two backends sit behind one trait, selected on a cached FPCR flag:
 
-| FPCR state | Backend |
-|---|---|
+| FPCR state                                                   | Backend            |
+| ------------------------------------------------------------ | ------------------ |
 | Default mode (round-to-nearest, no flush-to-zero, untrapped) | Native wasm FP ops |
-| Any non-default mode | Softfloat |
+| Any non-default mode                                         | Softfloat          |
 
 wasm exposes no rounding-mode control and no FP exception flags, so native ops
 are correct only while FPCR is in its default mode — which covers effectively

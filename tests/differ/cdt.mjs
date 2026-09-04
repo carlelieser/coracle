@@ -4,22 +4,31 @@
  * trace and for scripted checks in the harness.
  */
 import {
-  DISCON_NAMES, PRODUCER, RecordType, StreamFlags,
-  decodePstate, hex, regName,
+  DISCON_NAMES,
+  PRODUCER,
+  RecordType,
+  StreamFlags,
+  decodePstate,
+  hex,
+  regName,
 } from "./format.mjs";
 import { loadTrace } from "./reader.mjs";
 
 function flagNames(flags) {
-  return Object.entries(StreamFlags)
-    .filter(([, bit]) => (flags & bit) !== 0n)
-    .map(([name]) => name)
-    .join(",") || "none";
+  return (
+    Object.entries(StreamFlags)
+      .filter(([, bit]) => (flags & bit) !== 0n)
+      .map(([name]) => name)
+      .join(",") || "none"
+  );
 }
 
 function showHeader(trace) {
   const { header } = trace;
   console.log(`file:      ${trace.path}`);
-  console.log(`producer:  ${PRODUCER[header.producer] ?? header.producer} (${header.producerName})`);
+  console.log(
+    `producer:  ${PRODUCER[header.producer] ?? header.producer} (${header.producerName})`,
+  );
   console.log(`flags:     ${flagNames(header.flags)}`);
   console.log(`cpu id:    ${hex(header.cpuFeatureId)}`);
   console.log(`records:   ${trace.records.length}`);
@@ -34,8 +43,10 @@ function describe(record) {
       return `BLOCK   icount=${record.icount} pc=${hex(record.pc)} n=${record.nInsns} ${deltas}`;
     }
     case RecordType.EXCEPTION:
-      return `EXCEPT  icount=${record.icount} ${DISCON_NAMES[record.disconType] ?? record.disconType}` +
-             ` from=${hex(record.fromPc)} to=${hex(record.toPc)} pstate=[${decodePstate(record.pstate)}]`;
+      return (
+        `EXCEPT  icount=${record.icount} ${DISCON_NAMES[record.disconType] ?? record.disconType}` +
+        ` from=${hex(record.fromPc)} to=${hex(record.toPc)} pstate=[${decodePstate(record.pstate)}]`
+      );
     case RecordType.MARKER:
       return `MARKER  icount=${record.icount} kind=${record.kind} value=${record.value}`;
     case RecordType.END:
@@ -76,7 +87,9 @@ function commandStats(path) {
   }
   const blocks = counts.get(RecordType.BLOCK) ?? 0;
   console.log(`\ninstructions ${instructions}`);
-  console.log(`deltas       ${deltas} (${blocks ? (deltas / blocks).toFixed(2) : 0} per block)`);
+  console.log(
+    `deltas       ${deltas} (${blocks ? (deltas / blocks).toFixed(2) : 0} per block)`,
+  );
 }
 
 function commandCountExceptions(path) {
@@ -96,7 +109,9 @@ function commandIsComplete(path) {
 
 const [command, path, extra] = process.argv.slice(2);
 if (!command || !path) {
-  console.error("usage: cdt.mjs <dump|stats|count-exceptions|is-complete> <trace.cdt> [limit]");
+  console.error(
+    "usage: cdt.mjs <dump|stats|count-exceptions|is-complete> <trace.cdt> [limit]",
+  );
   process.exit(2);
 }
 

@@ -35,8 +35,8 @@ if (import.meta.url === `file://${process.argv[1]}`) {
   if (actual !== expected) {
     console.error(
       `feature id mismatch for ${JSON.stringify(text)}:\n` +
-      `  computed here: 0x${expected.toString(16).padStart(16, "0")}\n` +
-      `  in ${tracePath}: 0x${actual.toString(16).padStart(16, "0")}`,
+        `  computed here: 0x${expected.toString(16).padStart(16, "0")}\n` +
+        `  in ${tracePath}: 0x${actual.toString(16).padStart(16, "0")}`,
     );
     process.exit(1);
   }

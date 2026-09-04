@@ -19,11 +19,11 @@ SHA-256; no kernel source or build output is committed.
 
 ## Pins
 
-| Component | Version | Why |
-|-----------|---------|-----|
-| Linux | 6.12.108 (LTS) | Supported across the whole milestone sequence, unlike a current stable |
-| busybox | 1.37.0 | Static, no libc in the initramfs |
-| QEMU | 11.1.1 | Reference oracle. The differential harness pins its own copy; the two must agree |
+| Component | Version        | Why                                                                              |
+| --------- | -------------- | -------------------------------------------------------------------------------- |
+| Linux     | 6.12.108 (LTS) | Supported across the whole milestone sequence, unlike a current stable           |
+| busybox   | 1.37.0         | Static, no libc in the initramfs                                                 |
+| QEMU      | 11.1.1         | Reference oracle. The differential harness pins its own copy; the two must agree |
 
 Change a pin in `versions.env` and nowhere else.
 
@@ -33,23 +33,23 @@ Derived from QEMU `virt` (`-machine dumpdtb`), not invented, so the stock
 kernel boots unpatched and QEMU stays usable as the differential oracle.
 `scripts/dump-reference-dtb.sh` regenerates the reference and diffs it.
 
-| Region | Base | Size | IRQ (SPI) | GIC IRQ |
-|--------|------|------|-----------|---------|
-| GIC distributor | `0x0800_0000` | 64 KB | — | — |
-| GIC CPU interface | `0x0801_0000` | 64 KB | — | — |
-| PL011 UART (`ttyAMA0`) | `0x0900_0000` | 4 KB | 1 | 33 |
-| PL031 RTC | `0x0901_0000` | 4 KB | 2 | 34 |
-| virtio-mmio slot 0 | `0x0a00_0000` | 512 B | 16 | 48 |
-| virtio-mmio slot 1 | `0x0a00_0200` | 512 B | 17 | 49 |
-| virtio-mmio slot 2 | `0x0a00_0400` | 512 B | 18 | 50 |
-| virtio-mmio slot 3 | `0x0a00_0600` | 512 B | 19 | 51 |
-| virtio-mmio slot 4 | `0x0a00_0800` | 512 B | 20 | 52 |
-| virtio-mmio slot 5 | `0x0a00_0a00` | 512 B | 21 | 53 |
-| virtio-mmio slot 6 | `0x0a00_0c00` | 512 B | 22 | 54 |
-| virtio-mmio slot 7 | `0x0a00_0e00` | 512 B | 23 | 55 |
-| Guest RAM | `0x4000_0000` | 1 GB | — | — |
+| Region                 | Base          | Size  | IRQ (SPI) | GIC IRQ |
+| ---------------------- | ------------- | ----- | --------- | ------- |
+| GIC distributor        | `0x0800_0000` | 64 KB | —         | —       |
+| GIC CPU interface      | `0x0801_0000` | 64 KB | —         | —       |
+| PL011 UART (`ttyAMA0`) | `0x0900_0000` | 4 KB  | 1         | 33      |
+| PL031 RTC              | `0x0901_0000` | 4 KB  | 2         | 34      |
+| virtio-mmio slot 0     | `0x0a00_0000` | 512 B | 16        | 48      |
+| virtio-mmio slot 1     | `0x0a00_0200` | 512 B | 17        | 49      |
+| virtio-mmio slot 2     | `0x0a00_0400` | 512 B | 18        | 50      |
+| virtio-mmio slot 3     | `0x0a00_0600` | 512 B | 19        | 51      |
+| virtio-mmio slot 4     | `0x0a00_0800` | 512 B | 20        | 52      |
+| virtio-mmio slot 5     | `0x0a00_0a00` | 512 B | 21        | 53      |
+| virtio-mmio slot 6     | `0x0a00_0c00` | 512 B | 22        | 54      |
+| virtio-mmio slot 7     | `0x0a00_0e00` | 512 B | 23        | 55      |
+| Guest RAM              | `0x4000_0000` | 1 GB  | —         | —       |
 
-SPI *n* is GIC INTID *n* + 32. Timer PPIs are 13 (secure phys), 14 (non-secure
+SPI _n_ is GIC INTID _n_ + 32. Timer PPIs are 13 (secure phys), 14 (non-secure
 phys), 11 (virt) and 10 (hyp) — GIC INTID 29, 30, 27 and 26.
 
 The counter runs at 62.5 MHz, from QEMU's `virt`.
