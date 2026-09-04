@@ -17,8 +17,15 @@ BOOT_TIMEOUT_SECONDS=180
 qemu-system-aarch64 "$@" </dev/null >"$TRANSCRIPT" 2>&1 &
 qemu_pid=$!
 
+# Polls rather than sleeping the full timeout, so a guest that dies immediately
+# (a bad QEMU invocation) reports in a second instead of blocking for minutes.
 (
-	sleep "$BOOT_TIMEOUT_SECONDS"
+	waited=0
+	while [ "$waited" -lt "$BOOT_TIMEOUT_SECONDS" ]; do
+		kill -0 "$qemu_pid" 2>/dev/null || exit 0
+		sleep 1
+		waited=$((waited + 1))
+	done
 	if kill -0 "$qemu_pid" 2>/dev/null; then
 		echo "gate.sh: guest did not power off within ${BOOT_TIMEOUT_SECONDS}s" >&2
 		kill -9 "$qemu_pid" 2>/dev/null
@@ -27,10 +34,23 @@ qemu_pid=$!
 watchdog_pid=$!
 
 wait "$qemu_pid"
+qemu_status=$?
 kill "$watchdog_pid" 2>/dev/null
 wait "$watchdog_pid" 2>/dev/null
 
 echo "transcript: $TRANSCRIPT"
+
+# A guest that never ran produces an empty transcript, and every absence-based
+# check below ("no oops", "no call trace") would then pass on nothing. Refuse
+# to grade a run that did not happen.
+if [ "$qemu_status" -ne 0 ] || ! grep -q "Booting Linux on physical CPU" "$TRANSCRIPT"; then
+	echo
+	echo "  QEMU did not boot the guest (exit $qemu_status). Transcript:"
+	sed 's/^/    /' "$TRANSCRIPT"
+	echo
+	echo "M0 GATE: FAIL (no boot to grade)"
+	exit 1
+fi
 
 fail=0
 check() {
