@@ -65,9 +65,14 @@ jobs:
         with:
           toolchain: nightly-2026-08-01
       - uses: Swatinem/rust-cache@v2
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
       # The native run is the fast feedback loop and the only one that can use a
       # debugger; it exercises everything not behind `target_arch = "wasm32"`.
-      - run: cargo test --workspace
+      # `--all-features` turns on `trace`, without which the CDT stream tests
+      # compile to nothing and the wire format goes unchecked until the gate.
+      - run: cargo test --workspace --all-features
 
   test-js:
     name: test (js)
