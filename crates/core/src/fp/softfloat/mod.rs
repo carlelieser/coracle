@@ -5,5 +5,6 @@
 //! FPCR and for the build-time precise mode that `docs/plan.md` §2 requires of
 //! every differential FP leg.
 
+mod arithmetic;
 mod decompose;
 mod nan;
