@@ -46,7 +46,12 @@ pub fn data_processing(encoding: u32) -> Instruction {
     // S = 1 is unallocated across the whole group. Bit 31 is not reserved: it
     // is `sf` for the conversions to and from a general-purpose register, and
     // is checked there. For every other family it must be clear.
-    if bits(encoding, 29, 29) == 1 {
+    //
+    // Bit 30 must be clear too. Setting it selects the scalar advanced-SIMD
+    // space, which here holds only the SHA and AES encodings — unadvertised per
+    // `docs/machine-spec.md` §2, so they fault rather than reaching this
+    // decoder's tables.
+    if bits(encoding, 29, 29) == 1 || bits(encoding, 30, 30) == 1 {
         return unallocated(encoding);
     }
     // Bit 24 separates the three-source group (FMADD and friends) from the

@@ -226,6 +226,9 @@ mod tests {
         // (`docs/plan.md` §M1), so what it has not claimed must still fault
         // rather than decode to something approximate.
         assert_eq!(decode(0x1e20_2800).op, Op::Fadd);
-        assert!(decode(0x4e20_8400).op.is_unallocated());
+        // `add v0.16b, v0.16b, v0.16b` is claimed; `fmla v0.4s, v1.4s, v2.4s`
+        // is not, and stands for the rest of the lazy backlog.
+        assert_eq!(decode(0x4e20_8400).op, Op::VecAdd);
+        assert!(decode(0x4e22_cc20).op.is_unallocated());
     }
 }

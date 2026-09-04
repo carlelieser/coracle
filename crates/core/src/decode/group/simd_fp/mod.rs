@@ -11,11 +11,12 @@
 //! than decoding to something approximate.
 
 mod loads_stores;
+mod neon;
 mod scalar;
 
 pub use loads_stores::loads_and_stores_vec;
 
-use super::super::instruction::{unallocated, Instruction};
+use super::super::instruction::Instruction;
 use super::bits;
 
 /// `op0 = x111` — data processing, scalar FP and advanced SIMD.
@@ -25,5 +26,5 @@ pub fn data_processing_simd_fp(encoding: u32) -> Instruction {
     if bits(encoding, 28, 28) == 1 {
         return scalar::data_processing(encoding);
     }
-    unallocated(encoding)
+    neon::data_processing(encoding)
 }
