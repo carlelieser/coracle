@@ -32,7 +32,7 @@ pub use memory::{AccessFault, FlatMemory, Memory};
 
 use crate::decode::INSN_BYTES;
 use crate::regfile::RegFile;
-use crate::trace::{NullSink, TraceSink};
+use crate::trace::{deltas_between, DeltaBuffer, DisconType, ExceptionEvent, NullSink, TraceSink};
 use crate::trap::{Trap, TrapLog};
 
 /// Why [`Cpu::run`] stopped.
@@ -63,6 +63,13 @@ pub struct Cpu<M: Memory, S: TraceSink = NullSink> {
     pub sink: S,
     cache: DecodeCache,
     icount: u64,
+    /// Register state as of the last emitted block record.
+    ///
+    /// `None` means no shadow state is known and the next block emits the full
+    /// register set: the state at reset, and again after every exception, per
+    /// `tests/EMULATOR_INTERFACE.md` §2.
+    previous: Option<RegFile>,
+    deltas: DeltaBuffer,
 }
 
 impl<M: Memory> Cpu<M, NullSink> {
@@ -82,6 +89,8 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
             sink,
             cache: DecodeCache::new(),
             icount: 0,
+            previous: None,
+            deltas: DeltaBuffer::new(),
         }
     }
 
@@ -113,10 +122,24 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
     }
 
     /// Executes exactly one instruction.
+    ///
+    /// The block record is emitted *before* the instruction runs: both fields
+    /// `tests/TRACE_FORMAT.md` §4.1 puts in it — `pc`, "virtual address of
+    /// block start", and `icount`, "instructions retired BEFORE this block" —
+    /// describe state entering the block, so the deltas must too.
     pub fn step(&mut self) -> Result<(), Trap> {
         let pc = self.regs.pc();
         let encoding = self.fetch(pc)?;
         let insn = self.cache.decoded(pc, encoding);
+
+        if S::ENABLED {
+            deltas_between(self.previous.as_ref(), &self.regs, &mut self.deltas);
+            self.sink.on_block(pc, self.icount, self.deltas.as_slice());
+            match &mut self.previous {
+                Some(previous) => previous.clone_from(&self.regs),
+                slot @ None => *slot = Some(self.regs.clone()),
+            }
+        }
 
         let outcome = dispatch::execute(self, &insn, pc);
         match outcome {
@@ -128,9 +151,27 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
             }
         }
 
-        self.sink.on_block(pc, self.icount, &[]);
         self.icount += 1;
         Ok(())
+    }
+
+    /// Reports an exception entry, after the CPU has reached the vector.
+    ///
+    /// `tests/EMULATOR_INTERFACE.md` §2: the faulting instruction is not
+    /// counted as retired, so the event carries the current [`Self::icount`].
+    /// The shadow state is dropped, so the next block emits the full register
+    /// set and the two streams cannot silently drift.
+    pub fn on_exception(&mut self, from_pc: u64, to_pc: u64, discon: DisconType) {
+        if S::ENABLED {
+            self.sink.on_exception(&ExceptionEvent {
+                icount: self.icount,
+                from_pc,
+                to_pc,
+                discon,
+                regs: &self.regs,
+            });
+            self.previous = None;
+        }
     }
 
     fn fetch(&self, pc: u64) -> Result<u32, Trap> {

@@ -19,4 +19,6 @@ pub mod sink;
 pub mod writer;
 
 pub use format::{DisconType, EndReason, MarkerKind};
-pub use sink::{ExceptionEvent, NullSink, RegDelta, TraceSink};
+pub use sink::{
+    deltas_between, DeltaBuffer, DeltaOut, ExceptionEvent, NullSink, RegDelta, TraceSink,
+};
