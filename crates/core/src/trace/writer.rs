@@ -13,7 +13,7 @@ use super::format::{
     PRODUCER_NAME_BYTES, RECORD_HEADER_BYTES, REG_DELTA_BYTES,
 };
 use super::sink::{ExceptionEvent, RegDelta, TraceSink};
-use crate::reg::{trace_reg_id, Vec as VecReg, NUM_GPR};
+use crate::reg::{Vec as VecReg, NUM_GPR};
 use crate::regfile::RegFile;
 
 /// System registers an exception record carries. M1 emits these as zero;
@@ -115,6 +115,8 @@ impl CdtWriter {
 }
 
 impl TraceSink for CdtWriter {
+    const ENABLED: bool = true;
+
     fn on_marker(&mut self, kind: MarkerKind, icount: u64, value: u64) {
         self.write_record_header(record_type::MARKER, 0, RECORD_HEADER_BYTES + 24);
         self.write_words([icount, kind as u64, value]);
@@ -185,53 +187,4 @@ fn write_full_state(buffer: &mut Vec<u8>, regs: &RegFile) {
     }
 }
 
-/// Collects the deltas between two register-file snapshots.
-///
-/// `tests/EMULATOR_INTERFACE.md` §2 requires a register be emitted only when it
-/// changed. Passing `None` for `previous` emits the full set, which is what the
-/// block after an exception must do so the two streams cannot silently drift.
-pub fn deltas_between(previous: Option<&RegFile>, current: &RegFile, out: &mut Vec<RegDelta>) {
-    out.clear();
-    let mut push = |reg_id, value, old: Option<u64>| {
-        if old != Some(value) {
-            out.push(RegDelta { reg_id, value });
-        }
-    };
-
-    for index in 0..NUM_GPR as u8 {
-        push(
-            trace_reg_id::gpr(index),
-            current.x(index),
-            previous.map(|regs| regs.x(index)),
-        );
-    }
-    push(trace_reg_id::SP, current.sp(), previous.map(RegFile::sp));
-    push(trace_reg_id::PC, current.pc(), previous.map(RegFile::pc));
-    push(
-        trace_reg_id::PSTATE,
-        current.pstate.to_trace_word(),
-        previous.map(|regs| regs.pstate.to_trace_word()),
-    );
-    push(trace_reg_id::FPCR, current.fpcr, previous.map(|r| r.fpcr));
-    push(trace_reg_id::FPSR, current.fpsr, previous.map(|r| r.fpsr));
-
-    push_vec_deltas(previous, current, out);
-}
-
-fn push_vec_deltas(previous: Option<&RegFile>, current: &RegFile, out: &mut Vec<RegDelta>) {
-    for index in 0..VecReg::COUNT as u8 {
-        let reg = VecReg::new(index);
-        let value = current.read_v(reg);
-        if previous.map(|regs| regs.read_v(reg)) == Some(value) {
-            continue;
-        }
-        out.push(RegDelta {
-            reg_id: trace_reg_id::vec_lo(index),
-            value: value as u64,
-        });
-        out.push(RegDelta {
-            reg_id: trace_reg_id::vec_hi(index),
-            value: (value >> 64) as u64,
-        });
-    }
-}
+pub use super::sink::deltas_between;
