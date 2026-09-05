@@ -11,6 +11,8 @@ use std::io::Write;
 use std::process::Command;
 use std::sync::atomic::{AtomicU32, Ordering};
 
+use coracle_core::guest_memory::PHYS_RAM_BASE;
+use coracle_core::interp::{Cpu, FlatMemory, Memory};
 use coracle_core::pstate::{ExceptionLevel, Nzcv};
 use coracle_core::reg::{trace_reg_id, Gpr, Vec as VecReg};
 use coracle_core::regfile::RegFile;
@@ -202,4 +204,173 @@ fn an_unchanged_register_file_produces_no_deltas() {
         deltas.is_empty(),
         "EMULATOR_INTERFACE.md §2: emit a register only when it changed"
     );
+}
+
+/// Runs `program` from the base of RAM under a real [`CdtWriter`], returning
+/// the CPU it left behind and the stream it emitted.
+fn run_traced(program: &[u32], budget: u64) -> (Cpu<FlatMemory, CdtWriter>, Vec<u8>) {
+    let mut cpu = Cpu::with_sink(
+        loaded(program),
+        CdtWriter::new("coracle-m1-run", FpMode::Precise),
+    );
+    cpu.regs.set_pc(PHYS_RAM_BASE);
+    cpu.sink.on_marker(MarkerKind::TraceStart, 0, 0);
+
+    cpu.run(budget);
+
+    cpu.sink.finish(EndReason::Normal);
+    let bytes = cpu.sink.take();
+    (cpu, bytes)
+}
+
+/// Guest memory with `program` at the base of RAM.
+fn loaded(program: &[u32]) -> FlatMemory {
+    let mut memory = FlatMemory::new(4096);
+    for (index, word) in program.iter().enumerate() {
+        memory
+            .write_uint(PHYS_RAM_BASE + index as u64 * 4, 4, *word as u64)
+            .expect("program fits");
+    }
+    memory
+}
+
+/// Replays the stream's deltas up to and including `blocks[through]` the way
+/// `differ/compare.mjs` does, and returns what it says `reg_id` holds.
+fn replayed(blocks: &[serde_json::Value], through: usize, reg_id: u16) -> u64 {
+    let mut value = 0u64;
+    for block in &blocks[..=through] {
+        for delta in block["deltas"].as_array().expect("deltas") {
+            if delta["regId"].as_u64() == Some(u64::from(reg_id)) {
+                let text = delta["value"].as_str().expect("value");
+                value = u64::from_str_radix(text.trim_start_matches("0x"), 16).expect("hex value");
+            }
+        }
+    }
+    value
+}
+
+/// The delta count of a block whose producer had no shadow state: 31 GPRs, SP,
+/// PC, PSTATE, FPCR, FPSR and 64 V halves.
+const FULL_REGISTER_SET: usize = 31 + 5 + 64;
+
+#[test]
+fn a_traced_run_emits_the_registers_the_cpu_actually_holds() {
+    // add x0, x0, #1 ; add x1, x1, #2 ; add x2, x0, x1 ; sub x0, x0, #1
+    let program = [0x9100_0400, 0x9100_0821, 0x8b01_0002, 0xd100_0400];
+    let (cpu, bytes) = run_traced(&program, program.len() as u64);
+    let summary = read_with_differ(&bytes);
+    let blocks = summary["blocks"].as_array().expect("block records");
+
+    assert_eq!(blocks.len(), program.len(), "one block per instruction");
+
+    // Replaying the stream must reproduce the CPU's own state register by
+    // register: this is the property the differ rests on.
+    let last = blocks.len() - 1;
+    for index in 0..31u8 {
+        assert_eq!(
+            replayed(blocks, last, trace_reg_id::gpr(index)),
+            cpu.regs.x(index),
+            "x{index} in the stream disagrees with the CPU"
+        );
+    }
+    assert_eq!(replayed(blocks, last, trace_reg_id::SP), cpu.regs.sp());
+    assert_eq!(replayed(blocks, last, trace_reg_id::PC), cpu.regs.pc());
+    assert_eq!(
+        replayed(blocks, last, trace_reg_id::PSTATE),
+        cpu.regs.pstate.to_trace_word()
+    );
+    assert_eq!(replayed(blocks, last, trace_reg_id::FPCR), cpu.regs.fpcr);
+    assert_eq!(replayed(blocks, last, trace_reg_id::FPSR), cpu.regs.fpsr);
+
+    // An intermediate step too, so a stream that only converged at the end
+    // would still fail: after `add x2, x0, x1`, x2 is 3 and x0 is still 1.
+    assert_eq!(replayed(blocks, 2, trace_reg_id::gpr(2)), 3);
+    assert_eq!(replayed(blocks, 2, trace_reg_id::gpr(0)), 1);
+    assert_eq!(cpu.regs.x(0), 0, "the final sub takes x0 back to zero");
+}
+
+#[test]
+fn the_first_block_of_a_run_carries_every_register_and_later_ones_only_changes() {
+    // add x0, x0, #1 ; add x1, x1, #2
+    let (_, bytes) = run_traced(&[0x9100_0400, 0x9100_0821], 2);
+    let summary = read_with_differ(&bytes);
+    let blocks = summary["blocks"].as_array().expect("block records");
+
+    let first = blocks[0]["deltas"].as_array().expect("deltas");
+    assert_eq!(first.len(), FULL_REGISTER_SET, "no shadow state at reset");
+
+    let ids: Vec<u64> = blocks[1]["deltas"]
+        .as_array()
+        .expect("deltas")
+        .iter()
+        .map(|delta| delta["regId"].as_u64().expect("regId"))
+        .collect();
+    assert_eq!(
+        ids,
+        vec![u64::from(trace_reg_id::gpr(1)), u64::from(trace_reg_id::PC)],
+        "EMULATOR_INTERFACE.md §2: emit a register only when it changed"
+    );
+}
+
+#[test]
+fn icount_counts_the_instructions_retired_before_each_block() {
+    let (cpu, bytes) = run_traced(&[0x9100_0400, 0x9100_0400, 0x9100_0400], 3);
+    let summary = read_with_differ(&bytes);
+    let blocks = summary["blocks"].as_array().expect("block records");
+
+    for (step, block) in blocks.iter().enumerate() {
+        assert_eq!(block["icount"], step as u64);
+        assert_eq!(block["nInsns"], 1);
+        assert_eq!(
+            block["pc"].as_str().expect("pc"),
+            format!("0x{:016x}", PHYS_RAM_BASE + step as u64 * 4)
+        );
+    }
+    assert_eq!(summary["end"]["icount"], cpu.icount());
+}
+
+#[test]
+fn a_trapping_instruction_retires_nothing_and_emits_no_block() {
+    // add x0, x0, #1 ; a NEON encoding no slice has claimed ; add x0, x0, #1
+    let (cpu, bytes) = run_traced(&[0x9100_0400, 0x4e20_8400, 0x9100_0400], 8);
+    let summary = read_with_differ(&bytes);
+    let blocks = summary["blocks"].as_array().expect("block records");
+
+    // EMULATOR_INTERFACE.md §2: the faulting instruction is not counted as
+    // retired, so it contributes neither a block record nor an icount step.
+    assert_eq!(blocks.len(), 1, "only the instruction that retired");
+    assert_eq!(cpu.icount(), 1);
+    assert_eq!(summary["end"]["icount"], 1);
+}
+
+#[test]
+fn the_block_after_an_exception_re_emits_the_full_register_set() {
+    // add x0, x0, #1 ; add x1, x1, #2
+    let mut cpu = Cpu::with_sink(
+        loaded(&[0x9100_0400, 0x9100_0821]),
+        CdtWriter::new("coracle-m1-run", FpMode::Precise),
+    );
+    cpu.regs.set_pc(PHYS_RAM_BASE);
+    cpu.sink.on_marker(MarkerKind::TraceStart, 0, 0);
+
+    cpu.run(1);
+    let from_pc = cpu.regs.pc();
+    cpu.on_exception(from_pc, 0x200, DisconType::Exception);
+    cpu.run(1);
+
+    cpu.sink.finish(EndReason::Normal);
+    let summary = read_with_differ(&cpu.sink.take());
+    let blocks = summary["blocks"].as_array().expect("block records");
+
+    assert_eq!(blocks.len(), 2);
+    // EMULATOR_INTERFACE.md §2: "Treat the next block as if no shadow state is
+    // known and emit a full register set."
+    assert_eq!(
+        blocks[1]["deltas"].as_array().expect("deltas").len(),
+        FULL_REGISTER_SET
+    );
+    // One instruction retired before the exception, and the faulting one is
+    // not counted, so both records carry the same icount.
+    assert_eq!(summary["exceptions"][0]["icount"], 1);
+    assert_eq!(blocks[1]["icount"], 1);
 }
