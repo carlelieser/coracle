@@ -187,4 +187,6 @@ fn write_full_state(buffer: &mut Vec<u8>, regs: &RegFile) {
     }
 }
 
+/// Re-exported: the run loop diffs register files without the `trace` feature,
+/// so the function itself lives in `sink`, which is always compiled.
 pub use super::sink::deltas_between;

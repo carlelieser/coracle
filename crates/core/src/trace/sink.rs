@@ -22,7 +22,7 @@ pub struct RegDelta {
     pub value: u64,
 }
 
-/// Somewhere [`super::writer::deltas_between`] can append deltas.
+/// Somewhere [`deltas_between`] can append deltas.
 ///
 /// Exists so the machine loop can diff into a fixed-size array on the hot path
 /// while tests keep using `alloc::vec::Vec`.
@@ -195,7 +195,11 @@ pub fn deltas_between<O: DeltaOut + ?Sized>(
     push_vec_deltas(previous, current, out);
 }
 
-fn push_vec_deltas<O: DeltaOut + ?Sized>(previous: Option<&RegFile>, current: &RegFile, out: &mut O) {
+fn push_vec_deltas<O: DeltaOut + ?Sized>(
+    previous: Option<&RegFile>,
+    current: &RegFile,
+    out: &mut O,
+) {
     for index in 0..VecReg::COUNT as u8 {
         let reg = VecReg::new(index);
         let value = current.read_v(reg);
