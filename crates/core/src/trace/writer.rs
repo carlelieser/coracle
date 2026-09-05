@@ -45,7 +45,6 @@ pub enum FpMode {
 #[derive(Debug)]
 pub struct CdtWriter {
     buffer: Vec<u8>,
-    retired: u64,
 }
 
 impl CdtWriter {
@@ -56,10 +55,7 @@ impl CdtWriter {
     /// compares only the architectural core, which is the correct scope for a
     /// user-mode gate.
     pub fn new(producer_name: &str, fp_mode: FpMode) -> Self {
-        let mut writer = Self {
-            buffer: Vec::new(),
-            retired: 0,
-        };
+        let mut writer = Self { buffer: Vec::new() };
         writer.write_file_header(producer_name, fp_mode);
         writer
     }
@@ -129,8 +125,6 @@ impl TraceSink for CdtWriter {
         );
         let deltas = &deltas[..deltas.len().min(MAX_DELTAS_PER_BLOCK)];
 
-        self.retired = icount + M1_INSNS_PER_BLOCK as u64;
-
         let length = BLOCK_PREFIX_BYTES + deltas.len() * REG_DELTA_BYTES;
         self.write_record_header(record_type::BLOCK, deltas.len() as u8, length);
         self.write_words([pc, icount]);
@@ -155,9 +149,9 @@ impl TraceSink for CdtWriter {
         write_full_state(&mut self.buffer, event.regs);
     }
 
-    fn finish(&mut self, reason: EndReason) {
+    fn finish(&mut self, reason: EndReason, icount: u64) {
         self.write_record_header(record_type::END, 0, RECORD_HEADER_BYTES + 16);
-        self.write_words([self.retired, reason as u64]);
+        self.write_words([icount, reason as u64]);
     }
 }
 

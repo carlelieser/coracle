@@ -139,7 +139,12 @@ pub trait TraceSink {
     fn on_exception(&mut self, event: &ExceptionEvent<'_>);
 
     /// End of stream. Called exactly once.
-    fn finish(&mut self, reason: EndReason);
+    ///
+    /// `icount` is the total retired, per `tests/TRACE_FORMAT.md` §4.4. It is
+    /// passed rather than inferred from the last block: a block record is
+    /// written on entry, so the last one may name an instruction that trapped
+    /// and never retired.
+    fn finish(&mut self, reason: EndReason, icount: u64);
 }
 
 /// A sink that discards everything.
@@ -155,7 +160,7 @@ impl TraceSink for NullSink {
     fn on_marker(&mut self, _kind: MarkerKind, _icount: u64, _value: u64) {}
     fn on_block(&mut self, _pc: u64, _icount: u64, _deltas: &[RegDelta]) {}
     fn on_exception(&mut self, _event: &ExceptionEvent<'_>) {}
-    fn finish(&mut self, _reason: EndReason) {}
+    fn finish(&mut self, _reason: EndReason, _icount: u64) {}
 }
 
 /// Collects the deltas between two register-file snapshots.
@@ -242,6 +247,6 @@ mod tests {
             discon: DisconType::Exception,
             regs: &regs,
         });
-        sink.finish(EndReason::Normal);
+        sink.finish(EndReason::Normal, 1);
     }
 }

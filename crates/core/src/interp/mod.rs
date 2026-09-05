@@ -122,10 +122,24 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
     }
 
     /// Executes exactly one instruction.
+    ///
+    /// The block record is emitted *before* the instruction runs: both fields
+    /// `tests/TRACE_FORMAT.md` §4.1 puts in it — `pc`, "virtual address of
+    /// block start", and `icount`, "instructions retired BEFORE this block" —
+    /// describe state entering the block, so the deltas must too.
     pub fn step(&mut self) -> Result<(), Trap> {
         let pc = self.regs.pc();
         let encoding = self.fetch(pc)?;
         let insn = self.cache.decoded(pc, encoding);
+
+        if S::ENABLED {
+            deltas_between(self.previous.as_ref(), &self.regs, &mut self.deltas);
+            self.sink.on_block(pc, self.icount, self.deltas.as_slice());
+            match &mut self.previous {
+                Some(previous) => previous.clone_from(&self.regs),
+                slot @ None => *slot = Some(self.regs.clone()),
+            }
+        }
 
         let outcome = dispatch::execute(self, &insn, pc);
         match outcome {
@@ -137,14 +151,6 @@ impl<M: Memory, S: TraceSink> Cpu<M, S> {
             }
         }
 
-        if S::ENABLED {
-            deltas_between(self.previous.as_ref(), &self.regs, &mut self.deltas);
-            self.sink.on_block(pc, self.icount, self.deltas.as_slice());
-            match &mut self.previous {
-                Some(previous) => previous.clone_from(&self.regs),
-                slot @ None => *slot = Some(self.regs.clone()),
-            }
-        }
         self.icount += 1;
         Ok(())
     }
