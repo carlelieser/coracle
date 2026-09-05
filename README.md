@@ -1,9 +1,11 @@
 # coracle
 
 An arm64 full-system emulator targeting WebAssembly. See `docs/plan.md` for the
-specification and milestones.
+specification and milestones, and `docs/status.md` for what is built against
+them.
 
-Status: M0. The crates are skeletons; the emulator is not implemented yet.
+Status: M1. The A64 decoder and the syscall shim are in place; the interpreter
+executes 8 opcodes, so no M1 gate is met yet.
 
 ## Layout
 
