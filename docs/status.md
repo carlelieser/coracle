@@ -35,12 +35,11 @@ roughly 31% of the 32-bit encoding space, and 8 opcodes execute.
 
 ### Deferred
 
-**Trace deltas are not emitted from the interpreter.** `interp/mod.rs` calls
-`on_block` with an empty delta slice. `trace::writer::deltas_between` is
-complete and correct, and the CDT tests drive it directly, but nothing wires it
-into the run loop, so a trace captured from an actual run carries no register
-state. Closing this needs a previous-`RegFile` snapshot owned by `Cpu`. This is
-a prerequisite for debugging any differential failure.
+**Nothing reports exceptions to the trace.** `Cpu::on_exception` exists and
+drops the shadow state so the next block re-emits a full register set, but no
+production path calls it. The shim services `SVC`, the only exception source in
+M1, without reporting it, so a trace from a real shim run contains no exception
+records.
 
 **Guest memory has no linear-window backing.** `guest_memory.rs` computes the
 layout — `reserve` and `linear_offset` — but owns no storage and defines no
